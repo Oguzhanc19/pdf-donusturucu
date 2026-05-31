@@ -1,29 +1,28 @@
-# 📄 Fotoğraf - PDF Dönüştürücü (Image to PDF Converter)
+# 📄 PDF Otomatik Dönüştürücü ve Mobil Sunucu
 
-Bu proje, Android cihazlarda cihaz hafızasındaki fotoğrafları seçerek tek bir tıkla PDF belgesine dönüştürmenizi sağlayan, **Python** tabanlı bir mobil uygulamadır. 
+[![Web Sitesi](https://img.shields.io/badge/🌐_Web_Sitesi-Ziyaret_Et-blue?style=for-the-badge)](https://oguzhanc19.github.io/pdf-donusturucu/)
 
-Özellikle belge taramaları, not fotoğrafları veya kimlik görüntülerini hızlıca tek bir PDF dosyasında toplamak için geliştirilmiştir.
+Mobil platformlardaki dosya erişim kısıtlamalarını aşmak ve dönüştürme süreçlerini tam otomatik bir iş akışına bağlamak amacıyla geliştirilmiş yerel (local) bir otomasyon aracıdır. 
 
-## ✨ Özellikler
+Bu sistem, belirlenen hedef klasörleri sürekli olarak izler ve içerisine atılan fotoğraf veya belgeleri anında tek bir PDF dosyasında birleştirir. Ayrıca, yerel ağ üzerinden mobil cihazlarla haberleşerek telefonunuzdaki dosyaları bilgisayarınıza aktarıp dönüştürmenizi sağlayan bir sunucu modülüne sahiptir.
 
-* **Dahili Dosya Yöneticisi:** Android'in kısıtlayıcı güvenlik politikalarına (Scoped Storage) takılmadan, uygulamanın kendi içerisindeki dosya gezgini ile doğrudan klasörlere erişim.
-* **Çoklu Seçim:** Birden fazla PNG, JPG veya JPEG formatındaki fotoğrafı aynı anda seçebilme.
-* **Otomatik Dönüştürme:** Seçilen fotoğrafları otomatik olarak RGB formatına uyarlayıp tek bir PDF belgesine dönüştürme.
-* **Çevrimdışı Çalışma:** Hiçbir internet bağlantısı gerektirmeden tüm işlemleri cihazın kendi işlemcisiyle yapma.
+## 🌐 Proje Web Sitesi
+Projenin detaylarına, kullanım senaryolarına ve daha fazlasına hazırladığım web sitesinden ulaşabilirsiniz:  
+👉 **[oguzhanc19.github.io/pdf-donusturucu](https://oguzhanc19.github.io/pdf-donusturucu/)**
 
-## 🛠️ Kullanılan Teknolojiler
+## ✨ Temel Özellikler
 
-Bu uygulama, tamamen Python dili kullanılarak geliştirilmiş ve Android platformuna derlenmiştir:
+* **Otomatik İzleme (Watchdog):** 'Fotograflar' ve 'Belgeler' klasörlerini anlık olarak izler; dosya eklendiğinde, silindiğinde veya değiştirildiğinde PDF oluşturma işlemini insan müdahalesi olmadan otomatik olarak başlatır.
+* **Geniş Dosya Desteği:** * Resimler: `.jpg`, `.jpeg`, `.png`, `.bmp`, `.gif`, `.tiff`, `.tif`, `.webp`
+    * Belgeler: `.docx`, `.doc`, `.txt`, `.pdf`
+* **Mobil Sunucu Entegrasyonu:** Telefon ve bilgisayarınız aynı WiFi ağına bağlı olduğu sürece, mobil cihazınızdan gönderdiğiniz dosyaları işleyebilmek için bir sunucu altyapısı sunar.
+* **Şeffaflık Kontrolü:** PNG gibi şeffaf (RGBA) arka plana sahip görselleri otomatik olarak tespit eder ve PDF uyumluluğu için arka planlarını beyaza çevirerek RGB formatına dönüştürür.
+* **İki Farklı Çalışma Modu:** Sistemi arka planda sürekli çalışır halde bırakabileceğiniz gibi, dilediğinizde tek bir komutla anlık dönüştürme de yapabilirsiniz.
 
-* **[Python 3](https://www.python.org/):** Temel programlama dili.
-* **[Kivy](https://kivy.org/):** Mobil uyumlu grafiksel kullanıcı arayüzü (GUI) ve dahili dosya gezgini (`FileChooserListView`) için.
-* **[Pillow (PIL)](https://pillow.readthedocs.io/):** Fotoğrafları okumak, işlemek ve PDF formatında kaydetmek için.
-* **[Buildozer](https://buildozer.readthedocs.io/):** Python kodunu Android için `.apk` dosyasına dönüştüren (paketleyen) derleme aracı.
+## 🛠️ Kurulum
 
-## 🚀 Kurulum ve Çalıştırma
+Sistemin bilgisayarınızda sorunsuz çalışabilmesi için gerekli kütüphanelerin kurulması gerekmektedir. Proje dizininde bir terminal açarak aşağıdaki bağımlılıkları yükleyin:
 
-### Bilgisayarda (Python ile) Test Etmek İçin:
-1. Projeyi bilgisayarınıza klonlayın.
-2. Gerekli kütüphaneleri kurun:
 ```bash
-   pip install kivy pillow
+pip install Pillow>=10.0.0 watchdog>=3.0.0 docx2pdf>=0.1.8
+```
