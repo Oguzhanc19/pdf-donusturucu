@@ -1,10 +1,11 @@
-const CACHE_NAME = 'pdf-donusturucu-v3';
+const CACHE_NAME = 'basitlestirici-v1';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './app.js',
   './jspdf.umd.min.js',
+  './pdf-lib.min.js',
   './icon-512.png'
 ];
 

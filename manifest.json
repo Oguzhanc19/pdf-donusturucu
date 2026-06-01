@@ -1,7 +1,7 @@
 {
-  "name": "PDF Dönüştürücü",
-  "short_name": "PDF",
-  "description": "Fotoğraf ve belgelerinizi tek tıkla PDF'e dönüştürün",
+  "name": "Basitleştirici — Tüm Araçlar",
+  "short_name": "Basitleştirici",
+  "description": "PDF, Video, Resim ve Metin işlemlerinizi tek tıkla yapın",
   "start_url": ".",
   "display": "standalone",
   "orientation": "portrait",

@@ -48,7 +48,7 @@ def main():
 
     print()
     print("╔══════════════════════════════════════════════════════════╗")
-    print("║         📱 PDF DÖNÜŞTÜRÜCÜ — MOBİL SUNUCU 📱           ║")
+    print("║        ⚡ BASİTLEŞTİRİCİ — MOBİL SUNUCU ⚡            ║")
     print("╠══════════════════════════════════════════════════════════╣")
     print("║                                                        ║")
     print(f"║  🌐 Bilgisayar : http://localhost:{PORT}                 ║")

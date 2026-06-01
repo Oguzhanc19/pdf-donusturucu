@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#0a0a1a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="Fotoğraf ve belgelerinizi tek tıkla PDF'e dönüştürün">
+  <meta name="description" content="PDF, Video, Resim ve Metin işlemlerinizi tek tıkla yapın — Basitleştirici">
 
-  <title>PDF Dönüştürücü</title>
+  <title>Basitleştirici — Tüm Araçlar Tek Yerde</title>
 
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-512.png">
@@ -21,11 +21,27 @@
 <body>
 
   <!-- ─── Header ──────────────────────────────────────────── -->
-  <header class="header">
+  <header class="header" id="mainHeader">
     <div class="header-content">
-      <div class="header-icon">📄</div>
-      <h1>PDF Dönüştürücü</h1>
-      <p>Tek tıkla fotoğraf ve belgelerinizi PDF yapın</p>
+      <div class="header-icon">⚡</div>
+      <h1>Basitleştirici</h1>
+      <p>Tüm araçlar tek tıkla, hızlı ve kolay</p>
+    </div>
+  </header>
+
+  <!-- ─── Tool Header (shown when tool is open) ──────────── -->
+  <header class="header tool-header" id="toolHeader" style="display:none;">
+    <div class="header-content">
+      <button class="back-btn" id="backBtn">
+        <span>←</span>
+      </button>
+      <div class="tool-header-info">
+        <span class="tool-header-icon" id="toolHeaderIcon">📄</span>
+        <div>
+          <h1 id="toolHeaderTitle">Araç</h1>
+          <p id="toolHeaderDesc">Açıklama</p>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -40,101 +56,108 @@
     <button class="install-dismiss" id="installDismiss">✕</button>
   </div>
 
-  <!-- ─── Tab Bar ─────────────────────────────────────────── -->
-  <div class="tab-bar" id="tabBar">
-    <button class="tab-btn active" data-tab="photos" id="tabPhotos">
-      <span class="tab-icon">📷</span>
-      <span>Fotoğraflar</span>
-      <span class="tab-count" id="photoCount">0</span>
-    </button>
-    <button class="tab-btn" data-tab="docs" id="tabDocs">
-      <span class="tab-icon">📄</span>
-      <span>Belgeler</span>
-      <span class="tab-count" id="docCount">0</span>
-    </button>
-  </div>
+  <!-- ═══ HOME SCREEN ═══════════════════════════════════════ -->
+  <main class="main-content" id="homeScreen">
 
-  <!-- ─── Main Content ────────────────────────────────────── -->
-  <main class="main-content">
+    <!-- Search Bar -->
+    <div class="search-bar">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="Araç ara..." autocomplete="off">
+      <button class="search-clear" id="searchClear" style="display:none;">✕</button>
+    </div>
 
-    <!-- Photos Panel -->
-    <div class="tab-panel active" id="panelPhotos">
-      <div class="upload-area" id="uploadPhotos">
-        <input type="file" id="inputPhotos" accept="image/*" multiple>
-        <div class="upload-area-content">
-          <div class="upload-icon">📷</div>
-          <div class="upload-title">Fotoğraf Ekle</div>
-          <div class="upload-subtitle">Dokunarak fotoğraflarınızı seçin</div>
-          <div class="upload-formats">
-            <span class="format-badge">JPG</span>
-            <span class="format-badge">PNG</span>
-            <span class="format-badge">BMP</span>
-            <span class="format-badge">GIF</span>
-            <span class="format-badge">WEBP</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="preview-section" id="photoPreviewSection" style="display: none;">
-        <div class="preview-header">
-          <h3 id="photoPreviewTitle">0 fotoğraf seçildi</h3>
-          <button class="clear-all-btn" id="clearPhotos">🗑 Temizle</button>
-        </div>
-        <div class="preview-grid" id="photoGrid"></div>
-      </div>
-
-      <div class="info-card">
-        <span class="info-icon">💡</span>
-        <p>Seçtiğiniz tüm fotoğraflar sırasıyla <strong>tek bir PDF</strong> dosyasında birleştirilecektir. Her fotoğraf ayrı bir sayfa olur.</p>
+    <!-- Quick Actions -->
+    <div class="quick-actions" id="quickActions">
+      <div class="section-title">⚡ Hızlı Erişim</div>
+      <div class="quick-grid" id="quickGrid">
+        <!-- populated by JS -->
       </div>
     </div>
 
-    <!-- Documents Panel -->
-    <div class="tab-panel" id="panelDocs">
-      <div class="upload-area" id="uploadDocs">
-        <input type="file" id="inputDocs" accept="image/*,.txt,.pdf" multiple>
-        <div class="upload-area-content">
-          <div class="upload-icon">📑</div>
-          <div class="upload-title">Belge Ekle</div>
-          <div class="upload-subtitle">Dokunarak belgelerinizi seçin</div>
-          <div class="upload-formats">
-            <span class="format-badge">JPG</span>
-            <span class="format-badge">PNG</span>
-            <span class="format-badge">TXT</span>
-            <span class="format-badge">PDF</span>
-            <span class="format-badge">WEBP</span>
-          </div>
+    <!-- ─── PDF & Dosya İşlemleri ─────────────────────────── -->
+    <div class="category-section" data-category="pdf">
+      <div class="category-header" data-toggle="pdf">
+        <div class="category-icon cat-pdf">📄</div>
+        <div class="category-info">
+          <h2>PDF ve Dosya İşlemleri</h2>
+          <span class="category-count" id="pdfToolCount">0 araç</span>
         </div>
+        <span class="category-chevron">›</span>
       </div>
-
-      <div class="preview-section" id="docPreviewSection" style="display: none;">
-        <div class="preview-header">
-          <h3 id="docPreviewTitle">0 belge seçildi</h3>
-          <button class="clear-all-btn" id="clearDocs">🗑 Temizle</button>
-        </div>
-        <div class="preview-grid" id="docGrid"></div>
-      </div>
-
-      <div class="info-card">
-        <span class="info-icon">💡</span>
-        <p>Resim ve metin dosyaları <strong>tek bir PDF</strong>'te birleştirilir. PDF dosyaları olduğu gibi eklenir.</p>
+      <div class="category-tools" id="pdfTools">
+        <!-- populated by JS -->
       </div>
     </div>
+
+    <!-- ─── Video İşlemleri ───────────────────────────────── -->
+    <div class="category-section" data-category="video">
+      <div class="category-header" data-toggle="video">
+        <div class="category-icon cat-video">🎥</div>
+        <div class="category-info">
+          <h2>Video İşlemleri</h2>
+          <span class="category-count" id="videoToolCount">0 araç</span>
+        </div>
+        <span class="category-chevron">›</span>
+      </div>
+      <div class="category-tools" id="videoTools">
+        <!-- populated by JS -->
+      </div>
+    </div>
+
+    <!-- ─── Resim İşlemleri ───────────────────────────────── -->
+    <div class="category-section" data-category="image">
+      <div class="category-header" data-toggle="image">
+        <div class="category-icon cat-image">🖼️</div>
+        <div class="category-info">
+          <h2>Resim İşlemleri</h2>
+          <span class="category-count" id="imageToolCount">0 araç</span>
+        </div>
+        <span class="category-chevron">›</span>
+      </div>
+      <div class="category-tools" id="imageTools">
+        <!-- populated by JS -->
+      </div>
+    </div>
+
+    <!-- ─── Metin İşlemleri ───────────────────────────────── -->
+    <div class="category-section" data-category="text">
+      <div class="category-header" data-toggle="text">
+        <div class="category-icon cat-text">📝</div>
+        <div class="category-info">
+          <h2>Metin İşlemleri</h2>
+          <span class="category-count" id="textToolCount">0 araç</span>
+        </div>
+        <span class="category-chevron">›</span>
+      </div>
+      <div class="category-tools" id="textTools">
+        <!-- populated by JS -->
+      </div>
+    </div>
+
+    <!-- Search Results -->
+    <div class="search-results" id="searchResults" style="display:none;">
+      <div class="section-title">🔍 Arama Sonuçları</div>
+      <div class="search-results-grid" id="searchResultsGrid"></div>
+      <div class="search-empty" id="searchEmpty" style="display:none;">
+        <span>😔</span>
+        <p>Sonuç bulunamadı</p>
+      </div>
+    </div>
+
   </main>
 
-  <!-- ─── Action Bar ──────────────────────────────────────── -->
-  <div class="action-bar">
-    <button class="create-pdf-btn" id="createPdfBtn" disabled>
-      <span class="btn-icon">⚡</span>
-      <span id="btnText">Dosya Seçin</span>
-    </button>
-  </div>
+  <!-- ═══ TOOL SCREEN ═══════════════════════════════════════ -->
+  <main class="main-content tool-content" id="toolScreen" style="display:none;">
+    <div class="tool-workspace" id="toolWorkspace">
+      <!-- Dynamic tool UI injected here -->
+    </div>
+  </main>
 
   <!-- ─── Progress Overlay ────────────────────────────────── -->
   <div class="progress-overlay" id="progressOverlay">
     <div class="progress-spinner"></div>
-    <div class="progress-text" id="progressText">PDF oluşturuluyor...</div>
-    <div class="progress-sub" id="progressSub">Fotoğraflar işleniyor</div>
+    <div class="progress-text" id="progressText">İşleniyor...</div>
+    <div class="progress-sub" id="progressSub">Lütfen bekleyin</div>
     <div class="progress-bar-container">
       <div class="progress-bar" id="progressBar"></div>
     </div>
@@ -143,11 +166,11 @@
   <!-- ─── Success Overlay ─────────────────────────────────── -->
   <div class="success-overlay" id="successOverlay">
     <div class="success-check">✓</div>
-    <div class="success-title">PDF Hazır! 🎉</div>
-    <div class="success-subtitle" id="successInfo">PDF dosyanız başarıyla oluşturuldu.</div>
+    <div class="success-title">İşlem Tamamlandı! 🎉</div>
+    <div class="success-subtitle" id="successInfo">Dosyanız başarıyla oluşturuldu.</div>
     <div class="success-actions">
       <button class="download-btn" id="downloadBtn">
-        📥 PDF'i İndir
+        📥 Dosyayı İndir
       </button>
       <button class="close-success-btn" id="closeSuccess">
         Kapat
@@ -160,6 +183,7 @@
 
   <!-- ─── Scripts ─────────────────────────────────────────── -->
   <script src="jspdf.umd.min.js"></script>
+  <script src="pdf-lib.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
