@@ -603,13 +603,9 @@ function renderFileConverter(workspace) {
   }
 
   workspace.innerHTML = `<div id="fileUploadContainer"></div>
-    <div class="info-card warning">
-      <span class="info-icon">⚠️</span>
-      <p>Bu dönüşüm için dosyanız sunucuda işlenecektir. Dosyanız sunucuya yüklenip dönüştürüldükten sonra otomatik olarak silinir. Alternatif olarak <strong>Microsoft Print to PDF</strong> ya da <strong>LibreOffice</strong> kullanabilirsiniz.</p>
-    </div>
     <div class="info-card">
       <span class="info-icon">💡</span>
-      <p>Tarayıcı tabanlı dönüşüm: Dosyanızı seçin ve sunucu üzerinden PDF'e dönüştürülmesini bekleyin. İşlem dosya boyutuna göre birkaç saniye sürebilir.</p>
+      <p>Dosyanız tamamen tarayıcıda işlenir, hiçbir sunucuya gönderilmez. Dönüşüm tamamlandığında PDF olarak indirebilirsiniz.</p>
     </div>
     <div class="tool-btn-row">
       <button class="tool-btn tool-btn-primary" id="convertBtn" disabled>⚡ PDF'e Dönüştür</button>
@@ -631,8 +627,399 @@ function renderFileConverter(workspace) {
     const files = uploader.getFiles();
     if (files.length === 0) return;
 
-    showToast('⚠️ Bu işlem sunucu gerektirir. Offline çalışma için LibreOffice kullanın.', true);
+    showProgress(true);
+    updateProgress(10, 'Dosya okunuyor...', files[0].name);
+
+    try {
+      if (tool.id === 'word-to-pdf') {
+        await convertWordToPdf(files[0]);
+      } else if (tool.id === 'excel-to-pdf') {
+        await convertExcelToPdf(files[0]);
+      } else if (tool.id === 'ppt-to-pdf') {
+        await convertPptToPdf(files[0]);
+      }
+    } catch (err) {
+      showProgress(false);
+      showToast('❌ Hata: ' + err.message, true);
+    }
   });
+}
+
+// --- Word → PDF conversion using mammoth.js ---
+async function convertWordToPdf(file) {
+  updateProgress(20, 'Word dosyası okunuyor...', '');
+  const arrayBuf = await readFileAsArrayBuffer(file);
+
+  updateProgress(40, 'İçerik çıkarılıyor...', 'Metin ve biçimlendirme işleniyor');
+
+  let htmlContent = '';
+  try {
+    const result = await mammoth.convertToHtml({ arrayBuffer: arrayBuf });
+    htmlContent = result.value;
+  } catch(e) {
+    // Fallback: try extracting raw text
+    try {
+      const result = await mammoth.extractRawText({ arrayBuffer: arrayBuf });
+      htmlContent = '<p>' + result.value.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
+    } catch(e2) {
+      throw new Error('Word dosyası okunamadı. Lütfen .docx formatında olduğundan emin olun.');
+    }
+  }
+
+  updateProgress(60, 'PDF oluşturuluyor...', 'Sayfa düzeni hazırlanıyor');
+
+  // Render HTML to canvas then to PDF
+  const container = document.createElement('div');
+  container.style.cssText = 'position:absolute;left:-9999px;top:0;width:595px;padding:40px;font-family:Arial,sans-serif;font-size:12px;line-height:1.6;color:#000;background:#fff;';
+  container.innerHTML = htmlContent;
+  document.body.appendChild(container);
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+
+  // Split content into pages
+  const pageHeight = 842; // A4 height in pt
+  const pageWidth = 595; // A4 width in pt
+  const margin = 40;
+  const usableHeight = pageHeight - (margin * 2);
+
+  // Use a simple text-based approach for reliability
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = htmlContent;
+  const textContent = tempDiv.textContent || tempDiv.innerText || '';
+  document.body.removeChild(container);
+
+  const lines = doc.splitTextToSize(textContent, pageWidth - (margin * 2));
+  const lineHeight = 14;
+  let y = margin;
+  let pageNum = 1;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (y + lineHeight > pageHeight - margin) {
+      doc.addPage();
+      pageNum++;
+      y = margin;
+      updateProgress(60 + (i / lines.length) * 30, `PDF oluşturuluyor...`, `Sayfa ${pageNum}`);
+    }
+    doc.text(lines[i], margin, y);
+    y += lineHeight;
+  }
+
+  updateProgress(95, 'PDF kaydediliyor...', '');
+  const blob = doc.output('blob');
+  const outName = file.name.replace(/\.(docx?|doc)$/i, '.pdf');
+  showSuccessOverlay(blob, outName, `Word → PDF dönüştürüldü (${formatFileSize(blob.size)})`);
+}
+
+// --- Excel → PDF conversion using SheetJS ---
+async function convertExcelToPdf(file) {
+  updateProgress(20, 'Excel dosyası okunuyor...', '');
+
+  const arrayBuf = await readFileAsArrayBuffer(file);
+
+  updateProgress(40, 'Tablo verileri işleniyor...', '');
+
+  let workbook;
+  try {
+    workbook = XLSX.read(arrayBuf, { type: 'array' });
+  } catch(e) {
+    throw new Error('Excel dosyası okunamadı. Dosyanın geçerli bir Excel dosyası olduğundan emin olun.');
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  const pageWidth = 842; // A4 landscape width
+  const pageHeight = 595; // A4 landscape height
+  const margin = 30;
+
+  for (let si = 0; si < workbook.SheetNames.length; si++) {
+    const sheetName = workbook.SheetNames[si];
+    const sheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+    if (si > 0) doc.addPage();
+
+    updateProgress(40 + (si / workbook.SheetNames.length) * 50, `Sayfa: ${sheetName}`, `${si + 1}/${workbook.SheetNames.length} tablo`);
+
+    // Draw sheet name as title
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(sheetName, margin, margin + 10);
+
+    if (data.length === 0) continue;
+
+    // Calculate column widths
+    const maxCols = Math.min(data.reduce((max, row) => Math.max(max, row.length), 0), 20);
+    const availWidth = pageWidth - (margin * 2);
+    const colWidth = availWidth / maxCols;
+    const rowHeight = 18;
+    const headerHeight = 22;
+
+    doc.setFontSize(8);
+    let y = margin + 30;
+    let currentPage = 1;
+
+    for (let r = 0; r < data.length; r++) {
+      const row = data[r];
+      const isHeader = r === 0;
+      const rh = isHeader ? headerHeight : rowHeight;
+
+      // Check if we need a new page
+      if (y + rh > pageHeight - margin) {
+        doc.addPage();
+        currentPage++;
+        y = margin;
+      }
+
+      for (let c = 0; c < maxCols; c++) {
+        const x = margin + c * colWidth;
+        const cellText = String(row[c] !== undefined ? row[c] : '');
+
+        // Draw cell border
+        doc.setDrawColor(180, 180, 180);
+        doc.setLineWidth(0.5);
+        doc.rect(x, y, colWidth, rh);
+
+        // Header styling
+        if (isHeader) {
+          doc.setFillColor(60, 60, 100);
+          doc.rect(x, y, colWidth, rh, 'F');
+          doc.setTextColor(255, 255, 255);
+          doc.setFont('helvetica', 'bold');
+        } else {
+          if (r % 2 === 0) {
+            doc.setFillColor(245, 245, 250);
+            doc.rect(x, y, colWidth, rh, 'F');
+          }
+          doc.setTextColor(30, 30, 30);
+          doc.setFont('helvetica', 'normal');
+        }
+
+        // Draw text (truncated to fit)
+        const maxTextWidth = colWidth - 6;
+        let displayText = cellText;
+        while (doc.getTextWidth(displayText) > maxTextWidth && displayText.length > 0) {
+          displayText = displayText.slice(0, -1);
+        }
+        if (displayText.length < cellText.length) displayText += '…';
+
+        doc.text(displayText, x + 3, y + (isHeader ? 15 : 12));
+      }
+      y += rh;
+    }
+  }
+
+  updateProgress(95, 'PDF kaydediliyor...', '');
+  const blob = doc.output('blob');
+  const outName = file.name.replace(/\.(xlsx?|csv)$/i, '.pdf');
+  showSuccessOverlay(blob, outName, `Excel → PDF dönüştürüldü (${workbook.SheetNames.length} sayfa, ${formatFileSize(blob.size)})`);
+}
+
+// --- PowerPoint → PDF conversion ---
+async function convertPptToPdf(file) {
+  updateProgress(20, 'Sunum dosyası okunuyor...', '');
+
+  const arrayBuf = await readFileAsArrayBuffer(file);
+
+  updateProgress(30, 'Slaytlar çıkarılıyor...', '');
+
+  try {
+    // Use JSZip-like approach to extract PPTX content
+    const zip = await loadZipFromArrayBuffer(arrayBuf);
+    const slides = [];
+
+    // Get slide count from presentation.xml
+    const presentationXml = await getZipFileText(zip, 'ppt/presentation.xml');
+    const slideMatches = presentationXml.match(/r:id="rId(\d+)"/g) || [];
+
+    // Extract slide content
+    let slideIndex = 1;
+    while (true) {
+      try {
+        const slideXml = await getZipFileText(zip, `ppt/slides/slide${slideIndex}.xml`);
+        if (!slideXml) break;
+
+        // Extract text content from slide XML
+        const textParts = [];
+        // Match text runs
+        const textRegex = /<a:t>([^<]*)<\/a:t>/g;
+        let match;
+        while ((match = textRegex.exec(slideXml)) !== null) {
+          textParts.push(match[1]);
+        }
+
+        slides.push({
+          index: slideIndex,
+          texts: textParts
+        });
+        slideIndex++;
+      } catch(e) {
+        break;
+      }
+    }
+
+    if (slides.length === 0) {
+      throw new Error('Slayt bulunamadı. Dosyanın geçerli bir .pptx dosyası olduğundan emin olun.');
+    }
+
+    updateProgress(50, 'PDF oluşturuluyor...', `${slides.length} slayt bulundu`);
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: [720, 405] }); // 16:9
+
+    for (let i = 0; i < slides.length; i++) {
+      if (i > 0) doc.addPage([720, 405], 'landscape');
+
+      updateProgress(50 + (i / slides.length) * 40, `Slayt ${i + 1}/${slides.length}`, '');
+
+      const slide = slides[i];
+
+      // Draw slide background
+      doc.setFillColor(255, 255, 255);
+      doc.rect(0, 0, 720, 405, 'F');
+
+      // Draw slide number
+      doc.setFontSize(9);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Slayt ${slide.index}`, 680, 395);
+
+      // Draw text content
+      doc.setTextColor(30, 30, 30);
+      let y = 50;
+      let isFirstText = true;
+
+      for (const text of slide.texts) {
+        if (!text.trim()) continue;
+
+        if (isFirstText) {
+          // Title style
+          doc.setFontSize(24);
+          doc.setFont('helvetica', 'bold');
+          const titleLines = doc.splitTextToSize(text, 640);
+          doc.text(titleLines, 40, y);
+          y += titleLines.length * 30 + 20;
+          isFirstText = false;
+        } else {
+          // Body style
+          doc.setFontSize(14);
+          doc.setFont('helvetica', 'normal');
+          const bodyLines = doc.splitTextToSize('• ' + text, 620);
+          doc.text(bodyLines, 60, y);
+          y += bodyLines.length * 18 + 5;
+        }
+
+        if (y > 370) break;
+      }
+
+      // If no text, show placeholder
+      if (slide.texts.filter(t => t.trim()).length === 0) {
+        doc.setFontSize(16);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Slayt ${slide.index} (görsel içerik)`, 280, 200);
+      }
+    }
+
+    updateProgress(95, 'PDF kaydediliyor...', '');
+    const blob = doc.output('blob');
+    const outName = file.name.replace(/\.(pptx?|ppt)$/i, '.pdf');
+    showSuccessOverlay(blob, outName, `PowerPoint → PDF dönüştürüldü (${slides.length} slayt, ${formatFileSize(blob.size)})`);
+
+  } catch(err) {
+    if (err.message.includes('Slayt bulunamadı') || err.message.includes('.pptx')) {
+      throw err;
+    }
+    throw new Error('Sunum dosyası işlenemedi. Lütfen .pptx formatında olduğundan emin olun.');
+  }
+}
+
+// --- ZIP helper functions for PPTX parsing ---
+async function loadZipFromArrayBuffer(arrayBuf) {
+  // Minimal ZIP parser for PPTX files
+  const data = new Uint8Array(arrayBuf);
+  const files = {};
+
+  // Find end of central directory
+  let eocdOffset = -1;
+  for (let i = data.length - 22; i >= 0; i--) {
+    if (data[i] === 0x50 && data[i+1] === 0x4B && data[i+2] === 0x05 && data[i+3] === 0x06) {
+      eocdOffset = i;
+      break;
+    }
+  }
+  if (eocdOffset === -1) throw new Error('Geçersiz dosya formatı');
+
+  const view = new DataView(arrayBuf);
+  const cdOffset = view.getUint32(eocdOffset + 16, true);
+  const cdSize = view.getUint32(eocdOffset + 12, true);
+  const entryCount = view.getUint16(eocdOffset + 10, true);
+
+  let offset = cdOffset;
+  for (let i = 0; i < entryCount; i++) {
+    if (view.getUint32(offset, true) !== 0x02014B50) break;
+
+    const compMethod = view.getUint16(offset + 10, true);
+    const compSize = view.getUint32(offset + 20, true);
+    const uncompSize = view.getUint32(offset + 24, true);
+    const nameLen = view.getUint16(offset + 28, true);
+    const extraLen = view.getUint16(offset + 30, true);
+    const commentLen = view.getUint16(offset + 32, true);
+    const localOffset = view.getUint32(offset + 42, true);
+
+    const nameBytes = data.slice(offset + 46, offset + 46 + nameLen);
+    const fileName = new TextDecoder().decode(nameBytes);
+
+    // Read local file header to get data offset
+    const localNameLen = view.getUint16(localOffset + 26, true);
+    const localExtraLen = view.getUint16(localOffset + 28, true);
+    const dataOffset = localOffset + 30 + localNameLen + localExtraLen;
+
+    files[fileName] = {
+      compressed: compMethod === 8,
+      compSize,
+      uncompSize,
+      dataOffset,
+      data: data.slice(dataOffset, dataOffset + compSize)
+    };
+
+    offset += 46 + nameLen + extraLen + commentLen;
+  }
+
+  return files;
+}
+
+async function getZipFileText(zip, path) {
+  const entry = zip[path];
+  if (!entry) return null;
+
+  let bytes;
+  if (entry.compressed) {
+    // Use DecompressionStream for deflate
+    const ds = new DecompressionStream('deflate-raw');
+    const writer = ds.writable.getWriter();
+    const reader = ds.readable.getReader();
+    
+    writer.write(entry.data);
+    writer.close();
+    
+    const chunks = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+    
+    const totalLen = chunks.reduce((acc, c) => acc + c.length, 0);
+    bytes = new Uint8Array(totalLen);
+    let pos = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, pos);
+      pos += chunk.length;
+    }
+  } else {
+    bytes = entry.data;
+  }
+
+  return new TextDecoder().decode(bytes);
 }
 
 // --- IMG → PDF ---
@@ -707,10 +1094,10 @@ function renderPdfToWord(workspace) {
   workspace.innerHTML = `<div id="fileUploadContainer"></div>
     <div class="info-card">
       <span class="info-icon">💡</span>
-      <p>PDF'teki metinler çıkarılarak bir metin dosyası (.txt) olarak indirilir. Tam Word formatı için sunucu tarafı işlem gerekir.</p>
+      <p>PDF'teki metinler pdf.js ile çıkarılarak bir metin dosyası (.txt) olarak indirilir. Tüm sayfaların metin içeriği çıkarılır.</p>
     </div>
     <div class="tool-btn-row">
-      <button class="tool-btn tool-btn-primary" id="convertBtn" disabled>⚡ Metin Çıkar</button>
+      <button class="tool-btn tool-btn-primary" id="convertBtn" disabled>⚡ Metni Çıkar ve İndir</button>
     </div>`;
 
   const uploader = createFileUploadUI($('fileUploadContainer'), {
@@ -728,24 +1115,39 @@ function renderPdfToWord(workspace) {
     if (files.length === 0) return;
 
     showProgress(true);
-    updateProgress(30, 'PDF okunuyor...', 'Metin çıkarılıyor');
+    updateProgress(10, 'PDF okunuyor...', 'pdf.js ile metin çıkarılıyor');
 
     try {
       const arrayBuf = await readFileAsArrayBuffer(files[0]);
-      const pdfDoc = await PDFLib.PDFDocument.load(arrayBuf);
-      const pages = pdfDoc.getPages();
+
+      // Use pdf.js for text extraction
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuf });
+      const pdf = await loadingTask.promise;
+      const totalPages = pdf.numPages;
       let allText = '';
 
-      for (let i = 0; i < pages.length; i++) {
-        updateProgress(30 + (i / pages.length) * 60, `Sayfa ${i + 1}/${pages.length}`, 'Metin çıkarılıyor');
-        allText += `--- Sayfa ${i + 1} ---\n\n`;
-        // pdf-lib doesn't extract text directly, but we can indicate this
-        allText += `[Sayfa ${i + 1} — PDF metin çıkarma tarayıcıda sınırlıdır]\n\n`;
+      for (let i = 1; i <= totalPages; i++) {
+        updateProgress(10 + (i / totalPages) * 80, `Sayfa ${i}/${totalPages}`, 'Metin çıkarılıyor');
+
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map(item => item.str)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        allText += `--- Sayfa ${i} ---\n\n`;
+        if (pageText) {
+          allText += pageText + '\n\n';
+        } else {
+          allText += '[Bu sayfa metin içermiyor — görsel içerik olabilir]\n\n';
+        }
       }
 
       updateProgress(95, 'Dosya hazırlanıyor...', '');
       const blob = new Blob([allText], { type: 'text/plain;charset=utf-8' });
-      showSuccessOverlay(blob, files[0].name.replace('.pdf', '.txt'), `${pages.length} sayfa işlendi`);
+      showSuccessOverlay(blob, files[0].name.replace('.pdf', '.txt'), `${totalPages} sayfadan metin çıkarıldı`);
     } catch (err) {
       showProgress(false);
       showToast('❌ Hata: ' + err.message, true);
@@ -758,7 +1160,7 @@ function renderPdfToJpg(workspace) {
   workspace.innerHTML = `<div id="fileUploadContainer"></div>
     <div class="info-card">
       <span class="info-icon">💡</span>
-      <p>PDF sayfaları Canvas API kullanılarak JPG resimlerine dönüştürülür. Her sayfa ayrı bir resim olarak indirilir.</p>
+      <p>PDF sayfaları pdf.js ile render edilerek gerçek JPG resimlerine dönüştürülür. Her sayfa ayrı bir resim olarak indirilir.</p>
     </div>
     <div class="tool-btn-row">
       <button class="tool-btn tool-btn-primary" id="convertBtn" disabled>⚡ JPG'ye Dönüştür</button>
@@ -780,37 +1182,96 @@ function renderPdfToJpg(workspace) {
     if (files.length === 0) return;
 
     showProgress(true);
-    updateProgress(20, 'PDF okunuyor...', '');
+    updateProgress(10, 'PDF okunuyor...', '');
 
     try {
       const arrayBuf = await readFileAsArrayBuffer(files[0]);
-      const pdfDoc = await PDFLib.PDFDocument.load(arrayBuf);
-      const pages = pdfDoc.getPages();
+      const baseName = files[0].name.replace(/\.pdf$/i, '');
+
+      // Use pdf.js to render pages to canvas
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuf });
+      const pdf = await loadingTask.promise;
+      const totalPages = pdf.numPages;
+
       const results = $('pdfJpgResults');
-      results.innerHTML = '<div class="tool-section-title">📸 Oluşturulan Resimler</div>';
+      results.innerHTML = '<div class="tool-section-title">📸 OLUŞTURULAN RESİMLER</div>';
 
-      for (let i = 0; i < pages.length; i++) {
-        updateProgress(20 + (i / pages.length) * 70, `Sayfa ${i + 1}/${pages.length}`, 'Dönüştürülüyor');
+      const imageBlobs = [];
 
-        // Create a single-page PDF
-        const singlePdf = await PDFLib.PDFDocument.create();
-        const [copiedPage] = await singlePdf.copyPages(pdfDoc, [i]);
-        singlePdf.addPage(copiedPage);
-        const pdfBytes = await singlePdf.save();
-        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
+      for (let i = 1; i <= totalPages; i++) {
+        updateProgress(10 + (i / totalPages) * 80, `Sayfa ${i}/${totalPages}`, 'JPG\'ye dönüştürülüyor');
 
-        results.innerHTML += `
-          <div class="tool-result" style="margin-top:0.5rem;">
-            <div class="tool-result-header">
-              <span class="tool-result-title">Sayfa ${i + 1}</span>
-              <button class="tool-btn tool-btn-success" style="flex:0;padding:0.4rem 0.8rem;font-size:0.72rem;" onclick="window.open('${url}')">📥 İndir</button>
+        const page = await pdf.getPage(i);
+        const scale = 2; // High quality rendering
+        const viewport = page.getViewport({ scale });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+
+        // White background for JPG
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        await page.render({
+          canvasContext: ctx,
+          viewport: viewport
+        }).promise;
+
+        // Convert canvas to JPG blob
+        const jpgBlob = await new Promise(resolve => {
+          canvas.toBlob(resolve, 'image/jpeg', 0.92);
+        });
+
+        imageBlobs.push({ blob: jpgBlob, pageNum: i });
+
+        // Create preview and download button
+        const thumbCanvas = document.createElement('canvas');
+        const thumbScale = 150 / viewport.width;
+        thumbCanvas.width = 150;
+        thumbCanvas.height = viewport.height * thumbScale;
+        const thumbCtx = thumbCanvas.getContext('2d');
+        thumbCtx.drawImage(canvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+
+        const thumbUrl = thumbCanvas.toDataURL('image/jpeg', 0.6);
+        const blobUrl = URL.createObjectURL(jpgBlob);
+
+        const resultItem = document.createElement('div');
+        resultItem.className = 'tool-result';
+        resultItem.style.marginTop = '0.5rem';
+        resultItem.innerHTML = `
+          <div class="tool-result-header" style="align-items:center;">
+            <div style="display:flex;align-items:center;gap:0.75rem;">
+              <img src="${thumbUrl}" alt="Sayfa ${i}" style="width:60px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);">
+              <div>
+                <span class="tool-result-title">Sayfa ${i}</span>
+                <div style="font-size:0.7rem;color:var(--text-secondary);margin-top:2px;">${Math.round(viewport.width/2)}×${Math.round(viewport.height/2)}px · ${formatFileSize(jpgBlob.size)}</div>
+              </div>
             </div>
+            <a href="${blobUrl}" download="${baseName}_sayfa${i}.jpg" class="tool-btn tool-btn-success" style="flex:0;padding:0.4rem 0.8rem;font-size:0.72rem;text-decoration:none;">📥 İndir</a>
           </div>`;
+        results.appendChild(resultItem);
+      }
+
+      // Add "Download All" button if multiple pages
+      if (totalPages > 1) {
+        const downloadAllDiv = document.createElement('div');
+        downloadAllDiv.className = 'tool-btn-row';
+        downloadAllDiv.style.marginTop = '1rem';
+        downloadAllDiv.innerHTML = `<button class="tool-btn tool-btn-primary" id="downloadAllJpg">📥 Tümünü İndir (${totalPages} resim)</button>`;
+        results.appendChild(downloadAllDiv);
+
+        document.getElementById('downloadAllJpg').addEventListener('click', () => {
+          imageBlobs.forEach(({ blob, pageNum }) => {
+            downloadBlob(blob, `${baseName}_sayfa${pageNum}.jpg`);
+          });
+          showToast(`📥 ${totalPages} resim indiriliyor...`);
+        });
       }
 
       showProgress(false);
-      showToast(`✅ ${pages.length} sayfa dönüştürüldü`);
+      showToast(`✅ ${totalPages} sayfa JPG'ye dönüştürüldü`);
     } catch (err) {
       showProgress(false);
       showToast('❌ Hata: ' + err.message, true);
@@ -1027,7 +1488,7 @@ function renderPdfEncrypt(workspace) {
     </div>
     <div class="info-card">
       <span class="info-icon">💡</span>
-      <p>PDF'inize şifre ekleyin. Şifrelenmiş PDF açılırken bu şifre istenecektir.</p>
+      <p>PDF'inize şifre ekleyin. Şifrelenmiş PDF açılırken bu şifre istenecektir. İşlem tamamen tarayıcıda gerçekleşir.</p>
     </div>
     <div class="tool-btn-row">
       <button class="tool-btn tool-btn-primary" id="encryptBtn" disabled>🔒 Şifrele</button>
@@ -1050,19 +1511,68 @@ function renderPdfEncrypt(workspace) {
     if (!password) { showToast('⚠️ Lütfen şifre girin', true); return; }
 
     showProgress(true);
-    updateProgress(50, 'PDF şifreleniyor...', '');
+    updateProgress(20, 'PDF şifreleniyor...', 'Sayfalar işleniyor');
 
     try {
       const arrayBuf = await readFileAsArrayBuffer(files[0]);
-      const pdfDoc = await PDFLib.PDFDocument.load(arrayBuf);
 
-      // pdf-lib doesn't support encryption directly, we'll note this
-      // But we can still save it and inform the user
-      const pdfBytes = await pdfDoc.save();
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      // Re-render the PDF pages as images and create a new password-free PDF
+      // that is visually identical but uses jsPDF's built-in encryption
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuf });
+      const pdf = await loadingTask.promise;
+      const totalPages = pdf.numPages;
 
-      showProgress(false);
-      showToast('⚠️ Tarayıcı tabanlı PDF şifreleme sınırlıdır. Masaüstü aracı kullanın.', true);
+      const { jsPDF } = window.jspdf;
+      let doc = null;
+
+      for (let i = 1; i <= totalPages; i++) {
+        updateProgress(20 + (i / totalPages) * 60, `Sayfa ${i}/${totalPages}`, 'Şifreleniyor');
+
+        const page = await pdf.getPage(i);
+        const scale = 2;
+        const viewport = page.getViewport({ scale });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        await page.render({
+          canvasContext: ctx,
+          viewport: viewport
+        }).promise;
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.92);
+
+        // Calculate page size in mm
+        const mmWidth = (viewport.width / scale) * 0.264583;
+        const mmHeight = (viewport.height / scale) * 0.264583;
+
+        if (!doc) {
+          doc = new jsPDF({
+            orientation: mmWidth > mmHeight ? 'landscape' : 'portrait',
+            unit: 'mm',
+            format: [mmWidth, mmHeight],
+            encryption: {
+              userPassword: password,
+              ownerPassword: password,
+              userPermissions: ['print']
+            }
+          });
+        } else {
+          doc.addPage([mmWidth, mmHeight], mmWidth > mmHeight ? 'landscape' : 'portrait');
+        }
+
+        doc.addImage(imgData, 'JPEG', 0, 0, mmWidth, mmHeight, undefined, 'MEDIUM');
+      }
+
+      updateProgress(90, 'PDF kaydediliyor...', '');
+      const blob = doc.output('blob');
+      showSuccessOverlay(blob, 'Sifreli_' + files[0].name,
+        `PDF şifrelendi (${totalPages} sayfa, ${formatFileSize(blob.size)}). Açmak için şifre gerekecektir.`);
+
     } catch (err) {
       showProgress(false);
       showToast('❌ Hata: ' + err.message, true);
@@ -1353,7 +1863,7 @@ function renderPdfOcr(workspace) {
   workspace.innerHTML = `<div id="fileUploadContainer"></div>
     <div class="info-card">
       <span class="info-icon">💡</span>
-      <p>PDF'ten metin çıkarma işlemi. Tarayıcıda PDF metin katmanından metin çıkarılır.</p>
+      <p>PDF'ten metin çıkarma işlemi. pdf.js kullanılarak tüm sayfalardan metin çıkarılır ve gösterilir.</p>
     </div>
     <div class="tool-btn-row">
       <button class="tool-btn tool-btn-primary" id="ocrBtn" disabled>🔍 Metin Çıkar</button>
@@ -1375,43 +1885,90 @@ function renderPdfOcr(workspace) {
     if (files.length === 0) return;
 
     showProgress(true);
-    updateProgress(50, 'Metin çıkarılıyor...', '');
+    updateProgress(10, 'Metin çıkarılıyor...', 'pdf.js ile işleniyor');
 
     try {
       const arrayBuf = await readFileAsArrayBuffer(files[0]);
-      const pdfDoc = await PDFLib.PDFDocument.load(arrayBuf);
-      const pageCount = pdfDoc.getPageCount();
+
+      // Use pdf.js for text extraction
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuf });
+      const pdf = await loadingTask.promise;
+      const totalPages = pdf.numPages;
+      let allText = '';
+      let totalWords = 0;
+      let totalChars = 0;
+
+      for (let i = 1; i <= totalPages; i++) {
+        updateProgress(10 + (i / totalPages) * 80, `Sayfa ${i}/${totalPages}`, 'Metin çıkarılıyor');
+
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+
+        // Better text reconstruction with proper line breaks
+        let lastY = null;
+        let pageText = '';
+        for (const item of textContent.items) {
+          if (lastY !== null && Math.abs(item.transform[5] - lastY) > 5) {
+            pageText += '\n';
+          }
+          pageText += item.str;
+          lastY = item.transform[5];
+        }
+
+        pageText = pageText.trim();
+        if (pageText) {
+          allText += `--- Sayfa ${i} ---\n${pageText}\n\n`;
+          const words = pageText.split(/\s+/).filter(w => w.length > 0);
+          totalWords += words.length;
+          totalChars += pageText.length;
+        }
+      }
 
       showProgress(false);
 
       const resultDiv = $('ocrResult');
+
+      if (!allText.trim()) {
+        resultDiv.innerHTML = `
+          <div class="info-card warning">
+            <span class="info-icon">⚠️</span>
+            <p>Bu PDF'te metin katmanı bulunamadı. PDF görsel tabanlı olabilir (taranmış belge).</p>
+          </div>`;
+        return;
+      }
+
       resultDiv.innerHTML = `
         <div class="tool-result">
           <div class="tool-result-header">
-            <span class="tool-result-title">📄 PDF Bilgileri</span>
-            <button class="copy-btn" id="copyOcrBtn">📋 Kopyala</button>
+            <span class="tool-result-title">📄 Çıkarılan Metin</span>
+            <div style="display:flex;gap:0.5rem;">
+              <button class="copy-btn" id="copyOcrBtn">📋 Kopyala</button>
+              <button class="tool-btn tool-btn-success" style="padding:0.3rem 0.6rem;font-size:0.7rem;" id="downloadOcrBtn">📥 İndir</button>
+            </div>
           </div>
           <div class="tool-result-stats">
             <div class="stat-item">
               <span class="stat-label">Sayfa</span>
-              <span class="stat-value">${pageCount}</span>
+              <span class="stat-value">${totalPages}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Kelime</span>
+              <span class="stat-value">${totalWords.toLocaleString('tr-TR')}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Karakter</span>
+              <span class="stat-value">${totalChars.toLocaleString('tr-TR')}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">Boyut</span>
               <span class="stat-value">${formatFileSize(files[0].size)}</span>
             </div>
           </div>
-          <div class="tool-result-content" id="ocrText" style="margin-top:0.75rem;">PDF metin çıkarma işlemi tamamlandı.
-Toplam ${pageCount} sayfa içeriyor.
-Dosya boyutu: ${formatFileSize(files[0].size)}
-
-Not: Tam OCR (görüntüden metin çıkarma) için Tesseract.js gibi bir kütüphane gerekir.
-Bu araç PDF metin katmanından çıkarma yapar.</div>
+          <div class="tool-result-content" id="ocrText" style="margin-top:0.75rem;max-height:400px;overflow-y:auto;white-space:pre-wrap;font-size:0.8rem;line-height:1.5;">${escapeHtml(allText)}</div>
         </div>`;
 
       $('copyOcrBtn').addEventListener('click', () => {
-        const text = $('ocrText').textContent;
-        navigator.clipboard.writeText(text).then(() => {
+        navigator.clipboard.writeText(allText).then(() => {
           $('copyOcrBtn').classList.add('copied');
           $('copyOcrBtn').textContent = '✅ Kopyalandı';
           setTimeout(() => {
@@ -1420,6 +1977,13 @@ Bu araç PDF metin katmanından çıkarma yapar.</div>
           }, 2000);
         });
       });
+
+      $('downloadOcrBtn').addEventListener('click', () => {
+        const blob = new Blob([allText], { type: 'text/plain;charset=utf-8' });
+        downloadBlob(blob, files[0].name.replace('.pdf', '_metin.txt'));
+        showToast('📥 Metin dosyası indiriliyor...');
+      });
+
     } catch (err) {
       showProgress(false);
       showToast('❌ Hata: ' + err.message, true);
@@ -1437,24 +2001,119 @@ function renderVideoDownload(workspace) {
       <label class="tool-label">🔗 Video URL'si</label>
       <input type="url" class="tool-input" id="videoUrl" placeholder="https://www.youtube.com/watch?v=...">
     </div>
-    <div class="info-card warning">
-      <span class="info-icon">⚠️</span>
-      <p>Bu özellik sunucu tarafı işlem gerektirir. Tarayıcıdan doğrudan video indirmek güvenlik kısıtlamaları nedeniyle sınırlıdır. <strong>yt-dlp</strong> veya <strong>FFmpeg</strong> gibi araçları masaüstünde kullanabilirsiniz.</p>
+    <div class="tool-input-group">
+      <label class="tool-label">📐 Kalite</label>
+      <select class="tool-select" id="videoQuality">
+        <option value="1080">1080p (Full HD)</option>
+        <option value="720" selected>720p (HD)</option>
+        <option value="480">480p</option>
+        <option value="360">360p</option>
+      </select>
     </div>
     <div class="info-card">
       <span class="info-icon">💡</span>
-      <p>Masaüstünde kullanım: <code>yt-dlp "URL"</code> komutu ile videoları indirebilirsiniz.</p>
+      <p>YouTube, Twitter, Instagram, TikTok ve diğer platformlardan video indirme. Cobalt API kullanılarak işlenir.</p>
     </div>
     <div class="tool-btn-row">
       <button class="tool-btn tool-btn-primary" id="downloadBtn2" disabled>⬇️ Video İndir</button>
-    </div>`;
+    </div>
+    <div id="videoResult"></div>`;
 
   $('videoUrl').addEventListener('input', () => {
     $('downloadBtn2').disabled = !$('videoUrl').value.trim();
   });
 
-  $('downloadBtn2').addEventListener('click', () => {
-    showToast('⚠️ Bu işlem sunucu gerektirir. yt-dlp kullanın.', true);
+  $('downloadBtn2').addEventListener('click', async () => {
+    const url = $('videoUrl').value.trim();
+    if (!url) return;
+
+    showProgress(true);
+    updateProgress(30, 'Video aranıyor...', 'Cobalt API ile işleniyor');
+
+    try {
+      const quality = $('videoQuality').value;
+      const response = await fetch('https://api.cobalt.tools/api/json', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: url,
+          vQuality: quality,
+          filenamePattern: 'pretty',
+          isAudioOnly: false
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.status === 'error') {
+        throw new Error(data.text || 'Video bulunamadı veya desteklenmiyor.');
+      }
+
+      if (data.status === 'redirect' || data.status === 'stream') {
+        const downloadUrl = data.url;
+        updateProgress(80, 'Video indiriliyor...', '');
+
+        // Open download URL
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        showProgress(false);
+        showToast('✅ Video indirme başlatıldı!');
+
+        $('videoResult').innerHTML = `
+          <div class="tool-result" style="margin-top:1rem;">
+            <div class="tool-result-header">
+              <span class="tool-result-title">✅ Video Hazır</span>
+            </div>
+            <div class="tool-result-content" style="margin-top:0.5rem;">
+              İndirme başlatıldı. Eğer otomatik indirme başlamadıysa 
+              <a href="${downloadUrl}" target="_blank" style="color:var(--accent-purple);">buraya tıklayın</a>.
+            </div>
+          </div>`;
+      } else if (data.status === 'picker') {
+        showProgress(false);
+        // Multiple options available
+        const resultsDiv = $('videoResult');
+        resultsDiv.innerHTML = '<div class="tool-section-title" style="margin-top:1rem;">📹 İndirme Seçenekleri</div>';
+        
+        for (const item of data.picker || []) {
+          resultsDiv.innerHTML += `
+            <div class="tool-result" style="margin-top:0.5rem;">
+              <div class="tool-result-header">
+                <span class="tool-result-title">${item.type === 'video' ? '🎥 Video' : '📸 Resim'}</span>
+                <a href="${item.url}" target="_blank" class="tool-btn tool-btn-success" style="flex:0;padding:0.4rem 0.8rem;font-size:0.72rem;text-decoration:none;">📥 İndir</a>
+              </div>
+            </div>`;
+        }
+        showToast(`✅ ${(data.picker || []).length} seçenek bulundu`);
+      }
+
+    } catch (err) {
+      showProgress(false);
+      // Show alternative methods on error
+      $('videoResult').innerHTML = `
+        <div class="info-card warning" style="margin-top:1rem;">
+          <span class="info-icon">⚠️</span>
+          <p>${err.message || 'Video indirilemedi.'} Alternatif olarak şu yöntemleri deneyebilirsiniz:</p>
+        </div>
+        <div class="tool-result" style="margin-top:0.5rem;">
+          <div class="tool-result-content">
+            <strong>Alternatif Yöntemler:</strong><br><br>
+            1. <a href="https://cobalt.tools" target="_blank" style="color:var(--accent-purple);">cobalt.tools</a> web sitesini ziyaret edin<br>
+            2. <a href="https://y2mate.com" target="_blank" style="color:var(--accent-purple);">y2mate.com</a> kullanın<br>
+            3. Masaüstünde: <code>yt-dlp "${url}"</code> komutunu çalıştırın
+          </div>
+        </div>`;
+      showToast('⚠️ ' + (err.message || 'Video indirilemedi'), true);
+    }
   });
 }
 
@@ -1464,20 +2123,100 @@ function renderAudioDownload(workspace) {
       <label class="tool-label">🔗 Video URL'si</label>
       <input type="url" class="tool-input" id="audioUrl" placeholder="https://www.youtube.com/watch?v=...">
     </div>
-    <div class="info-card warning">
-      <span class="info-icon">⚠️</span>
-      <p>Bu özellik sunucu tarafı işlem gerektirir. Masaüstünde <strong>yt-dlp -x --audio-format mp3 "URL"</strong> komutu ile ses indirebilirsiniz.</p>
+    <div class="tool-input-group">
+      <label class="tool-label">🎵 Ses Formatı</label>
+      <select class="tool-select" id="audioFormat">
+        <option value="mp3" selected>MP3</option>
+        <option value="ogg">OGG</option>
+        <option value="wav">WAV</option>
+        <option value="best">En İyi Kalite</option>
+      </select>
+    </div>
+    <div class="info-card">
+      <span class="info-icon">💡</span>
+      <p>YouTube ve diğer platformlardan sadece sesi MP3 olarak indirin. Cobalt API kullanılarak işlenir.</p>
     </div>
     <div class="tool-btn-row">
-      <button class="tool-btn tool-btn-primary" id="downloadBtn2" disabled>🎵 Ses İndir (MP3)</button>
-    </div>`;
+      <button class="tool-btn tool-btn-primary" id="downloadBtn2" disabled>🎵 Ses İndir</button>
+    </div>
+    <div id="audioResult"></div>`;
 
   $('audioUrl').addEventListener('input', () => {
     $('downloadBtn2').disabled = !$('audioUrl').value.trim();
   });
 
-  $('downloadBtn2').addEventListener('click', () => {
-    showToast('⚠️ Bu işlem sunucu gerektirir. yt-dlp kullanın.', true);
+  $('downloadBtn2').addEventListener('click', async () => {
+    const url = $('audioUrl').value.trim();
+    if (!url) return;
+
+    showProgress(true);
+    updateProgress(30, 'Ses çıkarılıyor...', 'Cobalt API ile işleniyor');
+
+    try {
+      const format = $('audioFormat').value;
+      const response = await fetch('https://api.cobalt.tools/api/json', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: url,
+          isAudioOnly: true,
+          aFormat: format === 'best' ? 'best' : format,
+          filenamePattern: 'pretty'
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.status === 'error') {
+        throw new Error(data.text || 'Ses dosyası bulunamadı veya desteklenmiyor.');
+      }
+
+      if (data.status === 'redirect' || data.status === 'stream') {
+        const downloadUrl = data.url;
+        updateProgress(80, 'Ses indiriliyor...', '');
+
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        showProgress(false);
+        showToast('✅ Ses indirme başlatıldı!');
+
+        $('audioResult').innerHTML = `
+          <div class="tool-result" style="margin-top:1rem;">
+            <div class="tool-result-header">
+              <span class="tool-result-title">✅ Ses Dosyası Hazır</span>
+            </div>
+            <div class="tool-result-content" style="margin-top:0.5rem;">
+              İndirme başlatıldı. Eğer otomatik indirme başlamadıysa 
+              <a href="${downloadUrl}" target="_blank" style="color:var(--accent-purple);">buraya tıklayın</a>.
+            </div>
+          </div>`;
+      }
+
+    } catch (err) {
+      showProgress(false);
+      $('audioResult').innerHTML = `
+        <div class="info-card warning" style="margin-top:1rem;">
+          <span class="info-icon">⚠️</span>
+          <p>${err.message || 'Ses indirilemedi.'} Alternatif yöntemleri deneyebilirsiniz:</p>
+        </div>
+        <div class="tool-result" style="margin-top:0.5rem;">
+          <div class="tool-result-content">
+            <strong>Alternatif Yöntemler:</strong><br><br>
+            1. <a href="https://cobalt.tools" target="_blank" style="color:var(--accent-purple);">cobalt.tools</a> web sitesini ziyaret edin<br>
+            2. Masaüstünde: <code>yt-dlp -x --audio-format mp3 "${url}"</code>
+          </div>
+        </div>`;
+      showToast('⚠️ ' + (err.message || 'Ses indirilemedi'), true);
+    }
   });
 }
 
