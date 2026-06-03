@@ -1,4 +1,4 @@
-const CACHE_NAME = 'basitlestirici-v1';
+const CACHE_NAME = 'basitlestirici-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const ASSETS = [
   './app.js',
   './jspdf.umd.min.js',
   './pdf-lib.min.js',
+  './mammoth.min.js',
   './icon-512.png'
 ];
 
