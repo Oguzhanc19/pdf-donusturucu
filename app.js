@@ -696,12 +696,8 @@ function renderAiEmailImprover(workspace) {
       <p>Özensiz veya hızlıca yazdığınız metinleri saniyeler içinde <strong>profesyonel, kurumsal ve kusursuz</strong> bir e-postaya dönüştürür. Ücretsiz Google Gemini API altyapısını kullanır.</p>
     </div>
     
-    <div class="tool-input-group" id="apiKeyGroup" style="margin-top: 1rem;">
-      <label class="tool-label">🔑 Gemini API Anahtarı (Sadece ilk kullanımda gerekir)</label>
-      <input type="password" class="tool-input" id="geminiApiKey" placeholder="AI Studio'dan aldığınız anahtarı buraya yapıştırın">
-      <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.5rem;">
-        API anahtarınız yok mu? <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #10b981; text-decoration: underline;">Buraya tıklayarak</a> Google hesabınızla tamamen ücretsiz alabilirsiniz. Anahtar sadece sizin tarayıcınızda saklanır.
-      </div>
+    <div class="tool-input-group" id="apiKeyGroup" style="display: none;">
+      <!-- API anahtarı artık sunucuda güvenle saklanıyor -->
     </div>
 
     <div class="tool-input-group" style="margin-top: 1rem;">
@@ -734,16 +730,10 @@ function renderAiEmailImprover(workspace) {
     </div>
   `;
 
-  const savedKey = localStorage.getItem('gemini_api_key');
-  if (savedKey) {
-    $('geminiApiKey').value = savedKey;
-  }
-
   const checkInputs = () => {
-    $('improveBtn').disabled = !$('geminiApiKey').value.trim() || !$('draftInput').value.trim();
+    $('improveBtn').disabled = !$('draftInput').value.trim();
   };
 
-  $('geminiApiKey').addEventListener('input', checkInputs);
   $('draftInput').addEventListener('input', checkInputs);
 
   $('draftInput').addEventListener('input', function() {
@@ -760,13 +750,10 @@ function renderAiEmailImprover(workspace) {
   });
 
   $('improveBtn').addEventListener('click', async () => {
-    const apiKey = $('geminiApiKey').value.trim();
     const draftText = $('draftInput').value.trim();
     const tone = $('emailTone').value;
 
-    if (!apiKey || !draftText) return;
-
-    localStorage.setItem('gemini_api_key', apiKey);
+    if (!draftText) return;
 
     const btn = $('improveBtn');
     btn.disabled = true;
@@ -774,46 +761,24 @@ function renderAiEmailImprover(workspace) {
     $('aiResultContainer').style.display = 'none';
 
     try {
-      const prompt = `Sen uzman bir metin yazarısın ve kurumsal iletişim danışmanısın. Kullanıcı sana aceleyle, özensiz veya günlük dille yazılmış bir metin/fikir verecek. Senin görevin bu fikri alıp, **${tone}** tonunda mükemmel bir şekilde yeniden yazmak. 
-E-posta veya mesaj formatında hazırla. Başka hiçbir açıklama, yorum veya "İşte metniniz" gibi giriş cümleleri yazma. Sadece doğrudan kullanılabilir, profesyonel son metni ver.
-      
-Kullanıcının metni:
-"${draftText}"`;
+      const response = await fetch('https://yt-sunucu.onrender.com/api/ai/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draftText, tone })
+      });
 
-      const modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
-      let responseData = null;
-      let lastErrorMsg = '';
-      
-      for (const model of modelsToTry) {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.7 }
-          })
-        });
-
-        if (response.ok) {
-          responseData = await response.json();
-          break; // Başarılı
-        } else {
-          const errData = await response.json();
-          lastErrorMsg = errData.error?.message || 'Bilinmeyen hata';
-          // Eğer hata geçersiz API anahtarıysa diğer modellere bakmaya gerek yok
-          if (lastErrorMsg.includes('API key not valid')) {
-            throw new Error(lastErrorMsg);
-          }
-        }
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Sunucuya ulaşılamadı.');
       }
 
-      if (!responseData) {
-        throw new Error(lastErrorMsg || 'Hiçbir model desteklenmiyor.');
+      const responseData = await response.json();
+      
+      if (!responseData || responseData.status !== "success" || !responseData.text) {
+        throw new Error('Geçersiz yapay zeka yanıtı.');
       }
 
-      const generatedText = responseData.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (!generatedText) throw new Error('Geçersiz yapay zeka yanıtı.');
+      const generatedText = responseData.text;
 
       $('aiOutput').value = generatedText.trim();
       $('aiResultContainer').style.display = 'block';
@@ -823,12 +788,7 @@ Kullanıcının metni:
       
       showToast('✨ E-postanız profesyonelleştirildi');
     } catch (err) {
-      if (err.message.includes('API key not valid')) {
-        showToast('❌ Geçersiz API Anahtarı. Lütfen doğru yazdığınızdan emin olun.', true);
-        localStorage.removeItem('gemini_api_key');
-      } else {
-        showToast('❌ Hata oluştu: ' + err.message, true);
-      }
+      showToast('❌ Hata oluştu: ' + err.message, true);
     } finally {
       btn.disabled = false;
       btn.innerHTML = '✨ Profesyonelleştir';
