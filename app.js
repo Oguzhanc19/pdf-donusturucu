@@ -118,8 +118,27 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSearch();
   setupInstall();
   setupOverlays();
+  setupCategoryToggles();
   console.log('⚡ Basitleştirici hazır!');
 });
+
+function setupCategoryToggles() {
+  document.querySelectorAll('.category-header[data-toggle]').forEach(header => {
+    header.addEventListener('click', () => {
+      const cat = header.dataset.toggle;
+      const section = header.closest('.category-section');
+      const isExpanded = section.classList.contains('expanded');
+
+      if (isExpanded) {
+        section.classList.remove('expanded');
+        appState.expandedCategories.delete(cat);
+      } else {
+        section.classList.add('expanded');
+        appState.expandedCategories.add(cat);
+      }
+    });
+  });
+}
 
 function buildHomePage() {
   // Get quick access tools from localStorage
@@ -174,23 +193,6 @@ function buildHomePage() {
       `;
     }).join('');
   }
-
-  // Setup category toggles
-  document.querySelectorAll('.category-header[data-toggle]').forEach(header => {
-    header.addEventListener('click', () => {
-      const cat = header.dataset.toggle;
-      const section = header.closest('.category-section');
-      const isExpanded = section.classList.contains('expanded');
-
-      if (isExpanded) {
-        section.classList.remove('expanded');
-        appState.expandedCategories.delete(cat);
-      } else {
-        section.classList.add('expanded');
-        appState.expandedCategories.add(cat);
-      }
-    });
-  });
 
   // Expand default categories
   appState.expandedCategories.forEach(cat => {
