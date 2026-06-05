@@ -42,6 +42,9 @@ async def download_media(url: str, background_tasks: BackgroundTasks, isAudioOnl
             'quiet': True,
             'no_warnings': True,
             'format': 'best', # Varsayılan video formatı
+            'extractor_args': {
+                'youtube': ['player_client=android,web']
+            }
         }
         
         if isAudioOnly.lower() == "true":
