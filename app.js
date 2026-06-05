@@ -2027,9 +2027,9 @@ function renderVideoDownload(workspace) {
         <option value="360">360p</option>
       </select>
     </div>
-    <div class="info-card">
-      <span class="info-icon">💡</span>
-      <p>YouTube, Twitter, Instagram, TikTok ve diğer platformlardan video indirme. Cobalt API kullanılarak işlenir.</p>
+    <div class="info-card warning">
+      <span class="info-icon">⚠️</span>
+      <p>Twitter, Instagram, TikTok ve diğer platformlardan video indirme. <br><small style="color:#f87171;">Not: Sunucu kısıtlamaları nedeniyle YouTube indirmeleri şu an desteklenmemektedir.</small></p>
     </div>
     <div class="tool-btn-row">
       <button class="tool-btn tool-btn-primary" id="downloadBtn2" disabled>⬇️ Video İndir</button>
@@ -2081,27 +2081,20 @@ function renderVideoDownload(workspace) {
           </div>`;
         showToast('✅ Video indirme başlatıldı!');
       } else {
-        // Fallback: open cobalt.tools directly with the URL
-        window.open('https://cobalt.tools', '_blank');
         $('videoResult').innerHTML = `
-          <div class="tool-result" style="margin-top:1rem;">
-            <div class="tool-result-header">
-              <span class="tool-result-title">🌐 cobalt.tools Açıldı</span>
-            </div>
-            <div class="tool-result-content" style="margin-top:0.5rem;">
-              <p style="font-size:0.85rem;">Açılan cobalt.tools sayfasına URL'yi yapıştırarak videonuzu indirebilirsiniz.</p>
-              <p style="font-size:0.8rem;color:#94a3b8;margin-top:0.5rem;">URL: <span style="color:#a78bfa;user-select:all;">${url}</span></p>
-            </div>
+          <div class="info-card warning" style="margin-top:1rem;">
+            <span class="info-icon">⚠️</span>
+            <p>İndirme başarısız oldu. Sunucunuzun (Render.com) aktif olduğundan ve desteklenen bir link girdiğinizden emin olun.</p>
           </div>`;
-        showToast('🌐 cobalt.tools açıldı, URL\'yi yapıştırın');
+        showToast('❌ İndirme başarısız oldu', true);
       }
     } catch (err) {
-      window.open('https://cobalt.tools', '_blank');
       $('videoResult').innerHTML = `
         <div class="info-card warning" style="margin-top:1rem;">
           <span class="info-icon">⚠️</span>
-          <p>Otomatik indirme başarısız oldu. cobalt.tools açıldı — URL'yi yapıştırarak indirin.</p>
+          <p>Sunucuya bağlanılamadı. Lütfen API sunucunuzun çalışır durumda olduğunu kontrol edin.</p>
         </div>`;
+      showToast('❌ Bağlantı hatası', true);
     } finally {
       btn.disabled = false;
       btn.innerHTML = '⬇️ Video İndir';
@@ -2125,9 +2118,9 @@ function renderAudioDownload(workspace) {
         <option value="best">En İyi Kalite</option>
       </select>
     </div>
-    <div class="info-card">
-      <span class="info-icon">💡</span>
-      <p>YouTube ve diğer platformlardan sadece sesi MP3 olarak indirin. Cobalt API kullanılarak işlenir.</p>
+    <div class="info-card warning">
+      <span class="info-icon">⚠️</span>
+      <p>Desteklenen platformlardan videonun sesini MP3 olarak doğrudan indirin. <br><small style="color:#f87171;">Not: Sunucu kısıtlamaları nedeniyle YouTube desteklenmemektedir.</small></p>
     </div>
     <div class="tool-btn-row">
       <button class="tool-btn tool-btn-primary" id="downloadBtn2" disabled>🎵 Ses İndir</button>
@@ -2178,26 +2171,20 @@ function renderAudioDownload(workspace) {
           </div>`;
         showToast('✅ Ses indirme başlatıldı!');
       } else {
-        window.open('https://cobalt.tools', '_blank');
         $('audioResult').innerHTML = `
-          <div class="tool-result" style="margin-top:1rem;">
-            <div class="tool-result-header">
-              <span class="tool-result-title">🌐 cobalt.tools Açıldı</span>
-            </div>
-            <div class="tool-result-content" style="margin-top:0.5rem;">
-              <p style="font-size:0.85rem;">Açılan cobalt.tools sayfasında "audio" modunu seçip URL'yi yapıştırarak sesi indirebilirsiniz.</p>
-              <p style="font-size:0.8rem;color:#94a3b8;margin-top:0.5rem;">URL: <span style="color:#a78bfa;user-select:all;">${url}</span></p>
-            </div>
+          <div class="info-card warning" style="margin-top:1rem;">
+            <span class="info-icon">⚠️</span>
+            <p>İndirme başarısız oldu. Sunucunuzun (Render.com) aktif olduğundan ve desteklenen bir link girdiğinizden emin olun.</p>
           </div>`;
-        showToast('🌐 cobalt.tools açıldı, URL\'yi yapıştırın');
+        showToast('❌ İndirme başarısız oldu', true);
       }
     } catch (err) {
-      window.open('https://cobalt.tools', '_blank');
       $('audioResult').innerHTML = `
         <div class="info-card warning" style="margin-top:1rem;">
           <span class="info-icon">⚠️</span>
-          <p>Otomatik indirme başarısız oldu. cobalt.tools açıldı — URL'yi yapıştırarak indirin.</p>
+          <p>Sunucuya bağlanılamadı. Lütfen API sunucunuzun çalışır durumda olduğunu kontrol edin.</p>
         </div>`;
+      showToast('❌ Bağlantı hatası', true);
     } finally {
       btn.disabled = false;
       btn.innerHTML = '🎵 Ses İndir';
