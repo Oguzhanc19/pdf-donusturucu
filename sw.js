@@ -1,4 +1,4 @@
-const CACHE_NAME = 'basitlestirici-v3';
+const CACHE_NAME = 'basitlestirici-v4';
 const ASSETS = [
   './',
   './index.html',
@@ -30,8 +30,29 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch — cache first, then network
+// Fetch — cache first for assets, network only for API calls
 self.addEventListener('fetch', event => {
+  // Skip caching for non-GET requests and cross-origin (API) requests
+  if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
+    return;
+  }
+
+  // For app.js, always try network first to get latest code
+  if (event.request.url.includes('app.js')) {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          if (response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then(cached => cached || fetch(event.request)
