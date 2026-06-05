@@ -1995,21 +1995,71 @@ function renderPdfOcr(workspace) {
 // VIDEO TOOL RENDERERS
 // ═══════════════════════════════════════════════════════════
 
-// --- YENİ YTDLP BACKEND ENTEGRASYONU ---
-// NOT: API'yi render.com'da yayınladıktan sonra bu URL'yi kendi adresinizle değiştirin!
-// Örnek: const BACKEND_URL = 'https://sizin-api-adresiniz.onrender.com/api/download';
-const BACKEND_URL = 'https://yt-sunucu.onrender.com/api/download'; 
+// Cobalt API instances (community, sorted by reliability)
+const COBALT_INSTANCES = [
+  'https://nuko-c.meowing.de',
+  'https://melon.clxxped.lol',
+  'https://cobalt.alpha.wolfy.love',
+  'https://grapefruit.clxxped.lol',
+  'https://lime.clxxped.lol',
+  'https://api.qwkuns.me'
+];
 
 async function cobaltDownload(mediaUrl, options = {}) {
-  try {
-    const isAudio = options.downloadMode === 'audio' ? 'true' : 'false';
-    const apiUrl = `${BACKEND_URL}?url=${encodeURIComponent(mediaUrl)}&isAudioOnly=${isAudio}`;
-    
-    // API adresi zaten dosyayı döndürdüğü için direkt bu linki tarayıcıya açtırıyoruz
-    return { success: true, url: apiUrl, filename: null };
-  } catch (e) {
-    return { success: false };
+  const body = {
+    url: mediaUrl,
+    videoQuality: options.videoQuality || '720',
+    audioFormat: options.audioFormat || 'mp3',
+    downloadMode: options.downloadMode || 'auto',
+    filenameStyle: 'classic'
+  };
+
+  for (const instance of COBALT_INSTANCES) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+
+      const resp = await fetch(instance, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+
+      if (!resp.ok) continue;
+
+      const contentType = resp.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) continue;
+
+      const data = await resp.json();
+
+      if (data.status === 'error') continue;
+
+      // Handle different response types
+      if (data.status === 'redirect' || data.status === 'stream') {
+        return { success: true, url: data.url, filename: data.filename || null };
+      }
+      if (data.status === 'tunnel') {
+        return { success: true, url: data.url, filename: data.filename || null };
+      }
+      if (data.status === 'picker' && data.picker && data.picker.length > 0) {
+        // Return the first option from picker
+        const pick = data.picker[0];
+        return { success: true, url: pick.url, filename: pick.filename || null };
+      }
+      if (data.url) {
+        return { success: true, url: data.url, filename: data.filename || null };
+      }
+    } catch (e) {
+      // Try next instance
+      continue;
+    }
   }
+  return { success: false };
 }
 
 function renderVideoDownload(workspace) {
@@ -2081,27 +2131,20 @@ function renderVideoDownload(workspace) {
           </div>`;
         showToast('✅ Video indirme başlatıldı!');
       } else {
-        // Fallback: open cobalt.tools directly with the URL
-        window.open('https://cobalt.tools', '_blank');
         $('videoResult').innerHTML = `
-          <div class="tool-result" style="margin-top:1rem;">
-            <div class="tool-result-header">
-              <span class="tool-result-title">🌐 cobalt.tools Açıldı</span>
-            </div>
-            <div class="tool-result-content" style="margin-top:0.5rem;">
-              <p style="font-size:0.85rem;">Açılan cobalt.tools sayfasına URL'yi yapıştırarak videonuzu indirebilirsiniz.</p>
-              <p style="font-size:0.8rem;color:#94a3b8;margin-top:0.5rem;">URL: <span style="color:#a78bfa;user-select:all;">${url}</span></p>
-            </div>
+          <div class="info-card warning" style="margin-top:1rem;">
+            <span class="info-icon">⚠️</span>
+            <p>İndirme başarısız oldu. Lütfen linkin doğru olduğundan ve videonun gizli olmadığından emin olup tekrar deneyin.</p>
           </div>`;
-        showToast('🌐 cobalt.tools açıldı, URL\'yi yapıştırın');
+        showToast('❌ İndirme başarısız oldu', true);
       }
     } catch (err) {
-      window.open('https://cobalt.tools', '_blank');
       $('videoResult').innerHTML = `
         <div class="info-card warning" style="margin-top:1rem;">
           <span class="info-icon">⚠️</span>
-          <p>Otomatik indirme başarısız oldu. cobalt.tools açıldı — URL'yi yapıştırarak indirin.</p>
+          <p>Ağ hatası oluştu. Lütfen bağlantınızı kontrol edip daha sonra tekrar deneyin.</p>
         </div>`;
+      showToast('❌ Ağ hatası oluştu', true);
     } finally {
       btn.disabled = false;
       btn.innerHTML = '⬇️ Video İndir';
@@ -2178,26 +2221,20 @@ function renderAudioDownload(workspace) {
           </div>`;
         showToast('✅ Ses indirme başlatıldı!');
       } else {
-        window.open('https://cobalt.tools', '_blank');
         $('audioResult').innerHTML = `
-          <div class="tool-result" style="margin-top:1rem;">
-            <div class="tool-result-header">
-              <span class="tool-result-title">🌐 cobalt.tools Açıldı</span>
-            </div>
-            <div class="tool-result-content" style="margin-top:0.5rem;">
-              <p style="font-size:0.85rem;">Açılan cobalt.tools sayfasında "audio" modunu seçip URL'yi yapıştırarak sesi indirebilirsiniz.</p>
-              <p style="font-size:0.8rem;color:#94a3b8;margin-top:0.5rem;">URL: <span style="color:#a78bfa;user-select:all;">${url}</span></p>
-            </div>
+          <div class="info-card warning" style="margin-top:1rem;">
+            <span class="info-icon">⚠️</span>
+            <p>Ses indirme başarısız oldu. Lütfen linkin doğru olduğundan ve videonun gizli olmadığından emin olup tekrar deneyin.</p>
           </div>`;
-        showToast('🌐 cobalt.tools açıldı, URL\'yi yapıştırın');
+        showToast('❌ İndirme başarısız oldu', true);
       }
     } catch (err) {
-      window.open('https://cobalt.tools', '_blank');
       $('audioResult').innerHTML = `
         <div class="info-card warning" style="margin-top:1rem;">
           <span class="info-icon">⚠️</span>
-          <p>Otomatik indirme başarısız oldu. cobalt.tools açıldı — URL'yi yapıştırarak indirin.</p>
+          <p>Ağ hatası oluştu. Lütfen bağlantınızı kontrol edip daha sonra tekrar deneyin.</p>
         </div>`;
+      showToast('❌ Ağ hatası oluştu', true);
     } finally {
       btn.disabled = false;
       btn.innerHTML = '🎵 Ses İndir';
