@@ -1998,7 +1998,7 @@ function renderPdfOcr(workspace) {
 // --- YENİ YTDLP BACKEND ENTEGRASYONU ---
 // NOT: API'yi render.com'da yayınladıktan sonra bu URL'yi kendi adresinizle değiştirin!
 // Örnek: const BACKEND_URL = 'https://sizin-api-adresiniz.onrender.com/api/download';
-const BACKEND_URL = 'http://localhost:8000/api/download'; 
+const BACKEND_URL = 'https://yt-sunucu.onrender.com/api/download'; 
 
 async function cobaltDownload(mediaUrl, options = {}) {
   try {
