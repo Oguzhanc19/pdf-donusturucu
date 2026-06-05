@@ -4,6 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 import yt_dlp
 import os
 import uuid
+import json
+import urllib.request
+from pydantic import BaseModel
 
 app = FastAPI()
 
@@ -72,3 +75,45 @@ async def download_media(url: str, background_tasks: BackgroundTasks, isAudioOnl
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+class EmailRequest(BaseModel):
+    draftText: str
+    tone: str
+
+# Kullanıcının gizli API anahtarı (Güvenli Sunucu Tarafı)
+GEMINI_API_KEY = "AIzaSyBxWByPJH6nFc4MXL_a8iMH3vbLkd-9nh0"
+
+@app.post("/api/ai/email")
+async def improve_email(req: EmailRequest):
+    prompt = f"""Sen uzman bir metin yazarısın ve kurumsal iletişim danışmanısın. Kullanıcı sana aceleyle, özensiz veya günlük dille yazılmış bir metin/fikir verecek. Senin görevin bu fikri alıp, **{req.tone}** tonunda mükemmel bir şekilde yeniden yazmak. 
+E-posta veya mesaj formatında hazırla. Başka hiçbir açıklama, yorum veya "İşte metniniz" gibi giriş cümleleri yazma. Sadece doğrudan kullanılabilir, profesyonel son metni ver.
+
+Kullanıcının metni:
+"{req.draftText}" """
+
+    models_to_try = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+    
+    last_error = ""
+    for model in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.7}
+        }
+        data = json.dumps(payload).encode('utf-8')
+        req_obj = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
+        try:
+            with urllib.request.urlopen(req_obj) as response:
+                result = json.loads(response.read().decode('utf-8'))
+                text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                if text:
+                    return {"status": "success", "text": text}
+        except urllib.error.HTTPError as e:
+            err_resp = e.read().decode('utf-8')
+            last_error = err_resp
+            continue
+        except Exception as e:
+            last_error = str(e)
+            continue
+            
+    raise HTTPException(status_code=500, detail=f"Yapay zeka modellerine ulaşılamadı. Son hata: {last_error}")
