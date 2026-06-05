@@ -668,47 +668,25 @@ async function convertWordToPdf(file) {
 
   updateProgress(60, 'PDF oluşturuluyor...', 'Sayfa düzeni hazırlanıyor');
 
-  // Render HTML to canvas then to PDF
   const container = document.createElement('div');
-  container.style.cssText = 'position:absolute;left:-9999px;top:0;width:595px;padding:40px;font-family:Arial,sans-serif;font-size:12px;line-height:1.6;color:#000;background:#fff;';
+  container.style.cssText = 'padding: 20mm; font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #000; background: #fff; text-align: left; word-wrap: break-word;';
   container.innerHTML = htmlContent;
-  document.body.appendChild(container);
 
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  const opt = {
+    margin:       0,
+    filename:     file.name.replace(/\.(docx?|doc)$/i, '.pdf'),
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2, useCORS: true },
+    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
 
-  // Split content into pages
-  const pageHeight = 842; // A4 height in pt
-  const pageWidth = 595; // A4 width in pt
-  const margin = 40;
-  const usableHeight = pageHeight - (margin * 2);
-
-  // Use a simple text-based approach for reliability
-  const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = htmlContent;
-  const textContent = tempDiv.textContent || tempDiv.innerText || '';
-  document.body.removeChild(container);
-
-  const lines = doc.splitTextToSize(textContent, pageWidth - (margin * 2));
-  const lineHeight = 14;
-  let y = margin;
-  let pageNum = 1;
-
-  for (let i = 0; i < lines.length; i++) {
-    if (y + lineHeight > pageHeight - margin) {
-      doc.addPage();
-      pageNum++;
-      y = margin;
-      updateProgress(60 + (i / lines.length) * 30, `PDF oluşturuluyor...`, `Sayfa ${pageNum}`);
-    }
-    doc.text(lines[i], margin, y);
-    y += lineHeight;
+  try {
+    const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
+    updateProgress(95, 'PDF kaydediliyor...', '');
+    showSuccessOverlay(pdfBlob, opt.filename, `Word → PDF dönüştürüldü (${formatFileSize(pdfBlob.size)})`);
+  } catch (e) {
+    throw new Error('PDF oluşturma sırasında bir hata oluştu: ' + e.message);
   }
-
-  updateProgress(95, 'PDF kaydediliyor...', '');
-  const blob = doc.output('blob');
-  const outName = file.name.replace(/\.(docx?|doc)$/i, '.pdf');
-  showSuccessOverlay(blob, outName, `Word → PDF dönüştürüldü (${formatFileSize(blob.size)})`);
 }
 
 // --- Excel → PDF conversion using SheetJS ---
@@ -726,93 +704,58 @@ async function convertExcelToPdf(file) {
     throw new Error('Excel dosyası okunamadı. Dosyanın geçerli bir Excel dosyası olduğundan emin olun.');
   }
 
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-  const pageWidth = 842; // A4 landscape width
-  const pageHeight = 595; // A4 landscape height
-  const margin = 30;
+  const container = document.createElement('div');
+  container.style.cssText = 'padding: 10mm; font-family: Arial, sans-serif; font-size: 10px; color: #000; background: #fff; width: 100%; box-sizing: border-box;';
 
   for (let si = 0; si < workbook.SheetNames.length; si++) {
     const sheetName = workbook.SheetNames[si];
     const sheet = workbook.Sheets[sheetName];
     const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
-    if (si > 0) doc.addPage();
+    if (data.length === 0) continue;
 
     updateProgress(40 + (si / workbook.SheetNames.length) * 50, `Sayfa: ${sheetName}`, `${si + 1}/${workbook.SheetNames.length} tablo`);
 
-    // Draw sheet name as title
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text(sheetName, margin, margin + 10);
-
-    if (data.length === 0) continue;
-
-    // Calculate column widths
-    const maxCols = Math.min(data.reduce((max, row) => Math.max(max, row.length), 0), 20);
-    const availWidth = pageWidth - (margin * 2);
-    const colWidth = availWidth / maxCols;
-    const rowHeight = 18;
-    const headerHeight = 22;
-
-    doc.setFontSize(8);
-    let y = margin + 30;
-    let currentPage = 1;
-
+    const sheetDiv = document.createElement('div');
+    if (si > 0) sheetDiv.style.pageBreakBefore = 'always';
+    
+    sheetDiv.innerHTML = `<h2 style="font-size: 14px; margin-bottom: 10px; color: #333;">${sheetName}</h2>`;
+    
+    let tableHtml = '<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; table-layout: fixed; word-wrap: break-word;">';
     for (let r = 0; r < data.length; r++) {
-      const row = data[r];
+      tableHtml += '<tr>';
       const isHeader = r === 0;
-      const rh = isHeader ? headerHeight : rowHeight;
-
-      // Check if we need a new page
-      if (y + rh > pageHeight - margin) {
-        doc.addPage();
-        currentPage++;
-        y = margin;
-      }
-
-      for (let c = 0; c < maxCols; c++) {
-        const x = margin + c * colWidth;
-        const cellText = String(row[c] !== undefined ? row[c] : '');
-
-        // Draw cell border
-        doc.setDrawColor(180, 180, 180);
-        doc.setLineWidth(0.5);
-        doc.rect(x, y, colWidth, rh);
-
-        // Header styling
+      for (let c = 0; c < data[r].length; c++) {
+        const cellText = String(data[r][c] !== undefined ? data[r][c] : '');
         if (isHeader) {
-          doc.setFillColor(60, 60, 100);
-          doc.rect(x, y, colWidth, rh, 'F');
-          doc.setTextColor(255, 255, 255);
-          doc.setFont('helvetica', 'bold');
+          tableHtml += `<th style="border: 1px solid #ccc; padding: 6px; background-color: #3c3c64; color: #fff; font-weight: bold; overflow: hidden; text-align: left;">${cellText}</th>`;
         } else {
-          if (r % 2 === 0) {
-            doc.setFillColor(245, 245, 250);
-            doc.rect(x, y, colWidth, rh, 'F');
-          }
-          doc.setTextColor(30, 30, 30);
-          doc.setFont('helvetica', 'normal');
+          const bg = r % 2 === 0 ? '#f5f5fa' : '#ffffff';
+          tableHtml += `<td style="border: 1px solid #ccc; padding: 6px; background-color: ${bg}; overflow: hidden;">${cellText}</td>`;
         }
-
-        // Draw text (truncated to fit)
-        const maxTextWidth = colWidth - 6;
-        let displayText = cellText;
-        while (doc.getTextWidth(displayText) > maxTextWidth && displayText.length > 0) {
-          displayText = displayText.slice(0, -1);
-        }
-        if (displayText.length < cellText.length) displayText += '…';
-
-        doc.text(displayText, x + 3, y + (isHeader ? 15 : 12));
       }
-      y += rh;
+      tableHtml += '</tr>';
     }
+    tableHtml += '</table>';
+    sheetDiv.innerHTML += tableHtml;
+    container.appendChild(sheetDiv);
   }
 
-  updateProgress(95, 'PDF kaydediliyor...', '');
-  const blob = doc.output('blob');
-  const outName = file.name.replace(/\.(xlsx?|csv)$/i, '.pdf');
-  showSuccessOverlay(blob, outName, `Excel → PDF dönüştürüldü (${workbook.SheetNames.length} sayfa, ${formatFileSize(blob.size)})`);
+  const opt = {
+    margin:       0,
+    filename:     file.name.replace(/\.(xlsx?|csv)$/i, '.pdf'),
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2, useCORS: true },
+    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+  };
+
+  try {
+    const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
+    updateProgress(95, 'PDF kaydediliyor...', '');
+    showSuccessOverlay(pdfBlob, opt.filename, `Excel → PDF dönüştürüldü (${workbook.SheetNames.length} tablo, ${formatFileSize(pdfBlob.size)})`);
+  } catch (e) {
+    throw new Error('PDF oluşturma sırasında bir hata oluştu: ' + e.message);
+  }
 }
 
 // --- PowerPoint → PDF conversion ---
@@ -864,65 +807,64 @@ async function convertPptToPdf(file) {
 
     updateProgress(50, 'PDF oluşturuluyor...', `${slides.length} slayt bulundu`);
 
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: [720, 405] }); // 16:9
+    const container = document.createElement('div');
+    container.style.cssText = 'font-family: Arial, sans-serif; background: #fff; width: 100%;';
 
     for (let i = 0; i < slides.length; i++) {
-      if (i > 0) doc.addPage([720, 405], 'landscape');
-
       updateProgress(50 + (i / slides.length) * 40, `Slayt ${i + 1}/${slides.length}`, '');
 
       const slide = slides[i];
+      const slideDiv = document.createElement('div');
+      slideDiv.style.cssText = 'width: 100%; aspect-ratio: 16/9; background: #fff; padding: 40px; box-sizing: border-box; position: relative; overflow: hidden;';
+      if (i > 0) slideDiv.style.pageBreakBefore = 'always';
 
-      // Draw slide background
-      doc.setFillColor(255, 255, 255);
-      doc.rect(0, 0, 720, 405, 'F');
+      const slideNum = document.createElement('div');
+      slideNum.style.cssText = 'position: absolute; bottom: 20px; right: 20px; font-size: 12px; color: #999;';
+      slideNum.textContent = `Slayt ${slide.index}`;
+      slideDiv.appendChild(slideNum);
 
-      // Draw slide number
-      doc.setFontSize(9);
-      doc.setTextColor(150, 150, 150);
-      doc.text(`Slayt ${slide.index}`, 680, 395);
-
-      // Draw text content
-      doc.setTextColor(30, 30, 30);
-      let y = 50;
       let isFirstText = true;
 
       for (const text of slide.texts) {
         if (!text.trim()) continue;
 
+        const textEl = document.createElement('div');
         if (isFirstText) {
-          // Title style
-          doc.setFontSize(24);
-          doc.setFont('helvetica', 'bold');
-          const titleLines = doc.splitTextToSize(text, 640);
-          doc.text(titleLines, 40, y);
-          y += titleLines.length * 30 + 20;
+          textEl.style.cssText = 'font-size: 28px; font-weight: bold; margin-bottom: 20px; color: #333; line-height: 1.3;';
+          textEl.textContent = text;
           isFirstText = false;
         } else {
-          // Body style
-          doc.setFontSize(14);
-          doc.setFont('helvetica', 'normal');
-          const bodyLines = doc.splitTextToSize('• ' + text, 620);
-          doc.text(bodyLines, 60, y);
-          y += bodyLines.length * 18 + 5;
+          textEl.style.cssText = 'font-size: 18px; margin-bottom: 10px; color: #444; padding-left: 20px; position: relative; line-height: 1.4;';
+          textEl.innerHTML = `<span style="position: absolute; left: 0;">•</span> ${text}`;
         }
-
-        if (y > 370) break;
+        slideDiv.appendChild(textEl);
       }
 
-      // If no text, show placeholder
       if (slide.texts.filter(t => t.trim()).length === 0) {
-        doc.setFontSize(16);
-        doc.setTextColor(150, 150, 150);
-        doc.text(`Slayt ${slide.index} (görsel içerik)`, 280, 200);
+        const placeholder = document.createElement('div');
+        placeholder.style.cssText = 'font-size: 20px; color: #aaa; text-align: center; margin-top: 150px;';
+        placeholder.textContent = `Slayt ${slide.index} (görsel içerik)`;
+        slideDiv.appendChild(placeholder);
       }
+
+      container.appendChild(slideDiv);
     }
 
-    updateProgress(95, 'PDF kaydediliyor...', '');
-    const blob = doc.output('blob');
-    const outName = file.name.replace(/\.(pptx?|ppt)$/i, '.pdf');
-    showSuccessOverlay(blob, outName, `PowerPoint → PDF dönüştürüldü (${slides.length} slayt, ${formatFileSize(blob.size)})`);
+    const opt = {
+      margin:       0,
+      filename:     file.name.replace(/\.(pptx?|ppt)$/i, '.pdf'),
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true },
+      jsPDF:        { unit: 'mm', format: [297, 167], orientation: 'landscape' }
+    };
+
+    try {
+      const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
+      updateProgress(95, 'PDF kaydediliyor...', '');
+      showSuccessOverlay(pdfBlob, opt.filename, `PowerPoint → PDF dönüştürüldü (${slides.length} slayt, ${formatFileSize(pdfBlob.size)})`);
+    } catch (e) {
+      throw new Error('PDF oluşturma sırasında bir hata oluştu: ' + e.message);
+    }
 
   } catch(err) {
     if (err.message.includes('Slayt bulunamadı') || err.message.includes('.pptx')) {
@@ -2535,26 +2477,117 @@ function renderVideoScreenshot(workspace) {
 
 function renderVideoMerge(workspace) {
   workspace.innerHTML = `<div id="fileUploadContainer"></div>
-    <div class="info-card warning">
-      <span class="info-icon">⚠️</span>
-      <p>Video birleştirme tarayıcıda sınırlıdır. Tam destek için: <code>ffmpeg -i "concat:v1.mp4|v2.mp4" -c copy output.mp4</code></p>
+    <div class="info-card">
+      <span class="info-icon">💡</span>
+      <p>Videolar tarayıcınızda gerçek zamanlı işlenerek birleştirilir (ffmpeg gerektirmez). İşlem süresi videoların toplam uzunluğu kadardır. <b>Lütfen işlem bitene kadar sekmeyi açık tutun.</b></p>
     </div>
     <div class="tool-btn-row">
       <button class="tool-btn tool-btn-primary" id="mergeVideoBtn" disabled>📎 Videoları Birleştir</button>
     </div>`;
+
+  let selectedFiles = [];
 
   createFileUploadUI($('fileUploadContainer'), {
     accept: 'video/*',
     multiple: true,
     icon: '📎',
     title: 'Videoları Seçin',
-    subtitle: 'Birleştirmek istediğiniz videoları seçin',
-    formats: ['MP4', 'WEBM'],
-    onFiles: (files) => { $('mergeVideoBtn').disabled = files.length < 2; }
+    subtitle: 'Birleştirmek istediğiniz sıraya göre videoları seçin',
+    formats: ['MP4', 'WEBM', 'MOV'],
+    onFiles: (files) => { 
+      selectedFiles = Array.from(files);
+      $('mergeVideoBtn').disabled = selectedFiles.length < 2; 
+    }
   });
 
-  $('mergeVideoBtn').addEventListener('click', () => {
-    showToast('⚠️ Video birleştirme için FFmpeg kullanın. Tarayıcı desteği sınırlıdır.', true);
+  $('mergeVideoBtn').addEventListener('click', async () => {
+    if (selectedFiles.length < 2) return;
+    
+    showProgress(true);
+    updateProgress(10, 'Videolar hazırlanıyor...', 'Lütfen bekleyin (İşlem videoların süresi kadar sürecektir)');
+
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      const firstVideo = document.createElement('video');
+      firstVideo.src = URL.createObjectURL(selectedFiles[0]);
+      await new Promise(r => { firstVideo.onloadedmetadata = r; });
+      
+      canvas.width = firstVideo.videoWidth || 1280;
+      canvas.height = firstVideo.videoHeight || 720;
+      
+      const stream = canvas.captureStream(30);
+      
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const dest = audioCtx.createMediaStreamDestination();
+      
+      const tracks = [...stream.getVideoTracks(), ...dest.stream.getAudioTracks()];
+      const combinedStream = new MediaStream(tracks);
+      
+      const recorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm' });
+      const chunks = [];
+      recorder.ondataavailable = e => chunks.push(e.data);
+      
+      let currentVideoIndex = 0;
+      
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        showProgress(false);
+        showSuccessOverlay(blob, 'birlestirilmis_video.webm', `Videolar başarıyla birleştirildi (${formatFileSize(blob.size)})`);
+      };
+
+      recorder.start();
+
+      const playNextVideo = async () => {
+        if (currentVideoIndex >= selectedFiles.length) {
+          recorder.stop();
+          return;
+        }
+
+        updateProgress(20 + (currentVideoIndex / selectedFiles.length) * 70, `${currentVideoIndex + 1}. Video İşleniyor...`, selectedFiles[currentVideoIndex].name);
+
+        const video = document.createElement('video');
+        video.src = URL.createObjectURL(selectedFiles[currentVideoIndex]);
+        video.muted = true; // Video element itself is muted
+        video.crossOrigin = 'anonymous';
+        
+        await new Promise(r => { video.onloadedmetadata = r; });
+        
+        const source = audioCtx.createMediaElementSource(video);
+        source.connect(dest);
+        
+        video.play();
+        
+        const drawFrame = () => {
+          if (video.paused || video.ended) return;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          // Scale to fit
+          const hRatio = canvas.width / video.videoWidth;
+          const vRatio = canvas.height / video.videoHeight;
+          const ratio  = Math.min(hRatio, vRatio);
+          const centerShift_x = (canvas.width - video.videoWidth*ratio) / 2;
+          const centerShift_y = (canvas.height - video.videoHeight*ratio) / 2;  
+          ctx.drawImage(video, 0,0, video.videoWidth, video.videoHeight, centerShift_x,centerShift_y,video.videoWidth*ratio, video.videoHeight*ratio);
+          requestAnimationFrame(drawFrame);
+        };
+        
+        video.addEventListener('play', () => drawFrame());
+
+        video.addEventListener('ended', () => {
+          source.disconnect();
+          URL.revokeObjectURL(video.src);
+          currentVideoIndex++;
+          playNextVideo();
+        });
+      };
+
+      audioCtx.resume().then(() => playNextVideo());
+
+    } catch (err) {
+      showProgress(false);
+      showToast('❌ Birleştirme hatası: ' + err.message, true);
+    }
   });
 }
 
