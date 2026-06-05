@@ -483,6 +483,42 @@ body::after {
   transform: translateX(2px);
 }
 
+.quick-toggle-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-right: 0.5rem;
+  transition: var(--transition);
+}
+
+.quick-toggle-btn:hover,
+.quick-toggle-add:active {
+  border-color: var(--accent-emerald);
+  color: var(--accent-emerald);
+  background: rgba(16, 185, 129, 0.1);
+  transform: scale(1.1);
+}
+
+.quick-toggle-remove:active,
+.quick-toggle-remove {
+  border-color: var(--accent-rose);
+  color: var(--accent-rose);
+}
+
+.quick-toggle-remove:hover {
+  background: rgba(244, 63, 94, 0.1);
+  transform: scale(1.1);
+}
+
 /* ─── Search Results ──────────────────────────────────────── */
 .search-results-grid {
   display: flex;

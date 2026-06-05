@@ -15,11 +15,9 @@ const TOOLS = {
     icon: '📄',
     color: 'pdf',
     tools: [
-      { id: 'word-to-pdf', name: 'Word → PDF', icon: '📝', desc: 'Word dosyasını PDF\'e dönüştürür', quick: true },
-      { id: 'img-to-pdf', name: 'PNG/JPG → PDF', icon: '🖼️', desc: 'Resimleri PDF\'e dönüştürür', quick: true },
-      { id: 'pdf-to-word', name: 'PDF → Word', icon: '📃', desc: 'PDF\'i Word dosyasına dönüştürür' },
-      { id: 'pdf-to-jpg', name: 'PDF → JPG', icon: '📸', desc: 'PDF sayfalarını resme dönüştürür' },
-      { id: 'pdf-merge', name: 'PDF Birleştirme', icon: '📎', desc: 'Birden fazla PDF\'i birleştirir', quick: true },
+      { id: 'word-to-pdf', name: 'Word → PDF', icon: '📝', desc: 'Word dosyasını PDF\'e dönüştürür' },
+      { id: 'img-to-pdf', name: 'PNG/JPG → PDF', icon: '🖼️', desc: 'Resimleri PDF\'e dönüştürür' },
+      { id: 'pdf-merge', name: 'PDF Birleştirme', icon: '📎', desc: 'Birden fazla PDF\'i birleştirir' },
       { id: 'pdf-split', name: 'PDF Bölme', icon: '✂️', desc: 'PDF\'i sayfalara ayırır' },
       { id: 'pdf-compress', name: 'PDF Sıkıştırma', icon: '📦', desc: 'PDF dosya boyutunu küçültür' },
       { id: 'pdf-encrypt', name: 'PDF Şifreleme', icon: '🔒', desc: 'PDF\'e şifre koyar' },
@@ -37,8 +35,8 @@ const TOOLS = {
     icon: '💼',
     color: 'professional',
     tools: [
-      { id: 'ai-email', name: 'Yapay Zeka E-posta Asistanı', icon: '🤖', desc: 'Özensiz metinleri profesyonel e-postalara dönüştürür', quick: true },
-      { id: 'ai-chat', name: 'Yapay Zekaya Sor', icon: '💬', desc: 'İstediğiniz soruyu sorun, yapay zeka anında cevaplasın', quick: true }
+      { id: 'ai-email', name: 'Yapay Zeka E-posta Asistanı', icon: '🤖', desc: 'Özensiz metinleri profesyonel e-postalara dönüştürür' },
+      { id: 'ai-chat', name: 'Yapay Zekaya Sor', icon: '💬', desc: 'İstediğiniz soruyu sorun, yapay zeka anında cevaplasın' }
     ]
   },
 
@@ -124,23 +122,32 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function buildHomePage() {
+  // Get quick access tools from localStorage
+  const savedQuickTools = JSON.parse(localStorage.getItem('quickTools') || '[]');
+  
   // Build Quick Actions
   const quickGrid = $('quickGrid');
   const quickTools = [];
   for (const [catKey, cat] of Object.entries(TOOLS)) {
     for (const tool of cat.tools) {
-      if (tool.quick) {
+      if (savedQuickTools.includes(tool.id)) {
         quickTools.push({ ...tool, catKey, catColor: cat.color });
       }
     }
   }
 
-  quickGrid.innerHTML = quickTools.map(t => `
-    <div class="quick-item" data-tool-id="${t.id}" data-cat="${t.catKey}">
-      <div class="quick-item-icon qi-${t.catColor}">${t.icon}</div>
-      <span class="quick-item-label">${t.name}</span>
-    </div>
-  `).join('');
+  if (quickTools.length === 0) {
+    quickGrid.innerHTML = `<div style="grid-column: 1 / -1; color: #94a3b8; font-size: 0.9rem; text-align: center; padding: 1rem; border: 1px dashed #334155; border-radius: 8px;">
+      Henüz hızlı erişime araç eklemediniz.<br>Araçların yanındaki <strong>+</strong> butonuna basarak sık kullandıklarınızı buraya ekleyebilirsiniz.
+    </div>`;
+  } else {
+    quickGrid.innerHTML = quickTools.map(t => `
+      <div class="quick-item" data-tool-id="${t.id}" data-cat="${t.catKey}">
+        <div class="quick-item-icon qi-${t.catColor}">${t.icon}</div>
+        <span class="quick-item-label">${t.name}</span>
+      </div>
+    `).join('');
+  }
 
   // Build Category Sections
   for (const [catKey, cat] of Object.entries(TOOLS)) {
@@ -148,16 +155,24 @@ function buildHomePage() {
     const countEl = $(`${catKey}ToolCount`);
     countEl.textContent = `${cat.tools.length} araç`;
 
-    container.innerHTML = cat.tools.map(tool => `
-      <div class="tool-card" data-tool-id="${tool.id}" data-cat="${catKey}">
-        <div class="tool-card-icon tc-${cat.color}">${tool.icon}</div>
-        <div class="tool-card-info">
-          <div class="tool-card-name">${tool.name}</div>
-          <div class="tool-card-desc">${tool.desc}</div>
+    container.innerHTML = cat.tools.map(tool => {
+      const isQuick = savedQuickTools.includes(tool.id);
+      const btnClass = isQuick ? 'quick-toggle-remove' : 'quick-toggle-add';
+      const btnText = isQuick ? '−' : '+';
+      const btnTitle = isQuick ? 'Hızlı Erişimden Çıkar' : 'Hızlı Erişime Ekle';
+
+      return `
+        <div class="tool-card" data-tool-id="${tool.id}" data-cat="${catKey}">
+          <div class="tool-card-icon tc-${cat.color}">${tool.icon}</div>
+          <div class="tool-card-info">
+            <div class="tool-card-name">${tool.name}</div>
+            <div class="tool-card-desc">${tool.desc}</div>
+          </div>
+          <button class="quick-toggle-btn ${btnClass}" data-tool-id="${tool.id}" title="${btnTitle}" aria-label="${btnTitle}">${btnText}</button>
+          <span class="tool-card-arrow">›</span>
         </div>
-        <span class="tool-card-arrow">›</span>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   }
 
   // Setup category toggles
@@ -184,11 +199,46 @@ function buildHomePage() {
   });
 
   // Setup tool clicks
-  document.querySelectorAll('.tool-card, .quick-item').forEach(el => {
+  document.querySelectorAll('.tool-card').forEach(el => {
+    el.addEventListener('click', (e) => {
+      // Eğer tıklanan element quick-toggle-btn ise aracı açma
+      if (e.target.classList.contains('quick-toggle-btn')) {
+        return;
+      }
+      const toolId = el.dataset.toolId;
+      const catKey = el.dataset.cat;
+      openTool(catKey, toolId);
+    });
+  });
+
+  document.querySelectorAll('.quick-item').forEach(el => {
     el.addEventListener('click', () => {
       const toolId = el.dataset.toolId;
       const catKey = el.dataset.cat;
       openTool(catKey, toolId);
+    });
+  });
+
+  // Setup quick toggle buttons
+  document.querySelectorAll('.quick-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const toolId = btn.dataset.toolId;
+      let quickTools = JSON.parse(localStorage.getItem('quickTools') || '[]');
+      
+      if (quickTools.includes(toolId)) {
+        if (confirm('Bu aracı hızlı erişimden çıkarmak istiyor musunuz?')) {
+          quickTools = quickTools.filter(id => id !== toolId);
+          localStorage.setItem('quickTools', JSON.stringify(quickTools));
+          buildHomePage(); // Sayfayı yenile
+        }
+      } else {
+        if (confirm('Bu aracı hızlı erişime eklemek istiyor musunuz?')) {
+          quickTools.push(toolId);
+          localStorage.setItem('quickTools', JSON.stringify(quickTools));
+          buildHomePage(); // Sayfayı yenile
+        }
+      }
     });
   });
 }
@@ -323,8 +373,6 @@ function renderTool(toolId) {
     // PDF Tools
     'word-to-pdf': renderFileConverter,
     'img-to-pdf': renderImgToPdf,
-    'pdf-to-word': renderPdfToWord,
-    'pdf-to-jpg': renderPdfToJpg,
     'pdf-merge': renderPdfMerge,
     'pdf-split': renderPdfSplit,
     'pdf-compress': renderPdfCompress,
