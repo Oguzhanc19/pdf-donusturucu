@@ -1995,71 +1995,21 @@ function renderPdfOcr(workspace) {
 // VIDEO TOOL RENDERERS
 // ═══════════════════════════════════════════════════════════
 
-// Cobalt API instances (community, sorted by reliability)
-const COBALT_INSTANCES = [
-  'https://nuko-c.meowing.de',
-  'https://melon.clxxped.lol',
-  'https://cobalt.alpha.wolfy.love',
-  'https://grapefruit.clxxped.lol',
-  'https://lime.clxxped.lol',
-  'https://api.qwkuns.me'
-];
+// --- YENİ YTDLP BACKEND ENTEGRASYONU ---
+// NOT: API'yi render.com'da yayınladıktan sonra bu URL'yi kendi adresinizle değiştirin!
+// Örnek: const BACKEND_URL = 'https://sizin-api-adresiniz.onrender.com/api/download';
+const BACKEND_URL = 'http://localhost:8000/api/download'; 
 
 async function cobaltDownload(mediaUrl, options = {}) {
-  const body = {
-    url: mediaUrl,
-    videoQuality: options.videoQuality || '720',
-    audioFormat: options.audioFormat || 'mp3',
-    downloadMode: options.downloadMode || 'auto',
-    filenameStyle: 'classic'
-  };
-
-  for (const instance of COBALT_INSTANCES) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-
-      const resp = await fetch(instance, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal
-      });
-      clearTimeout(timeout);
-
-      if (!resp.ok) continue;
-
-      const contentType = resp.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) continue;
-
-      const data = await resp.json();
-
-      if (data.status === 'error') continue;
-
-      // Handle different response types
-      if (data.status === 'redirect' || data.status === 'stream') {
-        return { success: true, url: data.url, filename: data.filename || null };
-      }
-      if (data.status === 'tunnel') {
-        return { success: true, url: data.url, filename: data.filename || null };
-      }
-      if (data.status === 'picker' && data.picker && data.picker.length > 0) {
-        // Return the first option from picker
-        const pick = data.picker[0];
-        return { success: true, url: pick.url, filename: pick.filename || null };
-      }
-      if (data.url) {
-        return { success: true, url: data.url, filename: data.filename || null };
-      }
-    } catch (e) {
-      // Try next instance
-      continue;
-    }
+  try {
+    const isAudio = options.downloadMode === 'audio' ? 'true' : 'false';
+    const apiUrl = `${BACKEND_URL}?url=${encodeURIComponent(mediaUrl)}&isAudioOnly=${isAudio}`;
+    
+    // API adresi zaten dosyayı döndürdüğü için direkt bu linki tarayıcıya açtırıyoruz
+    return { success: true, url: apiUrl, filename: null };
+  } catch (e) {
+    return { success: false };
   }
-  return { success: false };
 }
 
 function renderVideoDownload(workspace) {
