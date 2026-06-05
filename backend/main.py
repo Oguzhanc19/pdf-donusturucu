@@ -117,3 +117,37 @@ Kullanıcının metni:
             continue
             
     raise HTTPException(status_code=500, detail=f"Yapay zeka modellerine ulaşılamadı. Son hata: {last_error}")
+
+class AskRequest(BaseModel):
+    question: str
+
+@app.post("/api/ai/ask")
+async def ask_ai(req: AskRequest):
+    prompt = f"Sen kullanıcının sorularına yardımcı olan Türkçe konuşan zeki bir asistan yapay zekasın. Lütfen şu soruya veya mesaja en iyi şekilde cevap ver:\n\n{req.question}"
+
+    models_to_try = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash']
+    
+    last_error = ""
+    for model in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.7}
+        }
+        data = json.dumps(payload).encode('utf-8')
+        req_obj = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
+        try:
+            with urllib.request.urlopen(req_obj) as response:
+                result = json.loads(response.read().decode('utf-8'))
+                text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                if text:
+                    return {"status": "success", "text": text}
+        except urllib.error.HTTPError as e:
+            err_resp = e.read().decode('utf-8')
+            last_error = err_resp
+            continue
+        except Exception as e:
+            last_error = str(e)
+            continue
+            
+    raise HTTPException(status_code=500, detail=f"Yapay zeka yanıt veremedi. Son hata: {last_error}")
