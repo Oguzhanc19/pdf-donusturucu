@@ -81,7 +81,7 @@ class EmailRequest(BaseModel):
     tone: str
 
 # Kullanıcının gizli API anahtarı (Güvenli Sunucu Tarafı)
-GEMINI_API_KEY = "AIzaSyBxWByPJH6nFc4MXL_a8iMH3vbLkd-9nh0"
+GEMINI_API_KEY = "AIzaSyD8gfdo5CRzEhdh6A9otmjMPAk8RdZ2Ft8"
 
 @app.post("/api/ai/email")
 async def improve_email(req: EmailRequest):
