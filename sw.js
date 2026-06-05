@@ -1,4 +1,4 @@
-const CACHE_NAME = 'basitlestirici-v10';
+const CACHE_NAME = 'basitlestirici-v11';
 const ASSETS = [
   './',
   './index.html',
