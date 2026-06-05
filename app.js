@@ -741,13 +741,14 @@ async function convertExcelToPdf(file) {
     container.appendChild(sheetDiv);
   }
 
-  const opt = {
-    margin:       0,
-    filename:     file.name.replace(/\.(xlsx?|csv)$/i, '.pdf'),
-    image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  { scale: 2, useCORS: true },
-    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
-  };
+    const opt = {
+      margin:       0,
+      filename:     file.name.replace(/\.(xlsx?|csv)$/i, '.pdf'),
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' },
+      pagebreak:    { mode: ['css', 'legacy'] }
+    };
 
   try {
     const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
@@ -815,8 +816,7 @@ async function convertPptToPdf(file) {
 
       const slide = slides[i];
       const slideDiv = document.createElement('div');
-      slideDiv.style.cssText = 'width: 100%; aspect-ratio: 16/9; background: #fff; padding: 40px; box-sizing: border-box; position: relative; overflow: hidden;';
-      if (i > 0) slideDiv.style.pageBreakBefore = 'always';
+      slideDiv.style.cssText = 'width: 297mm; height: 167mm; background: #fff; padding: 40px; box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always;';
 
       const slideNum = document.createElement('div');
       slideNum.style.cssText = 'position: absolute; bottom: 20px; right: 20px; font-size: 12px; color: #999;';
@@ -855,7 +855,8 @@ async function convertPptToPdf(file) {
       filename:     file.name.replace(/\.(pptx?|ppt)$/i, '.pdf'),
       image:        { type: 'jpeg', quality: 0.98 },
       html2canvas:  { scale: 2, useCORS: true },
-      jsPDF:        { unit: 'mm', format: [297, 167], orientation: 'landscape' }
+      jsPDF:        { unit: 'mm', format: [297, 167], orientation: 'landscape' },
+      pagebreak:    { mode: ['css', 'legacy'] }
     };
 
     try {
