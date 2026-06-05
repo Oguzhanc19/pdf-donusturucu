@@ -91,7 +91,7 @@ E-posta veya mesaj formatında hazırla. Başka hiçbir açıklama, yorum veya "
 Kullanıcının metni:
 "{req.draftText}" """
 
-    models_to_try = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+    models_to_try = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash']
     
     last_error = ""
     for model in models_to_try:
