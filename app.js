@@ -37,7 +37,8 @@ const TOOLS = {
     icon: '💼',
     color: 'professional',
     tools: [
-      { id: 'ai-email', name: 'Yapay Zeka E-posta Asistanı', icon: '🤖', desc: 'Özensiz metinleri profesyonel e-postalara dönüştürür', quick: true }
+      { id: 'ai-email', name: 'Yapay Zeka E-posta Asistanı', icon: '🤖', desc: 'Özensiz metinleri profesyonel e-postalara dönüştürür', quick: true },
+      { id: 'ai-chat', name: 'Yapay Zekaya Sor', icon: '💬', desc: 'İstediğiniz soruyu sorun, yapay zeka anında cevaplasın', quick: true }
     ]
   },
 
@@ -336,6 +337,7 @@ function renderTool(toolId) {
 
     // Professional & AI Tools
     'ai-email': renderAiEmailImprover,
+    'ai-chat': renderAiChat,
 
     // Video Tools
     'video-download': renderVideoDownload,
@@ -792,6 +794,95 @@ function renderAiEmailImprover(workspace) {
     } finally {
       btn.disabled = false;
       btn.innerHTML = '✨ Profesyonelleştir';
+    }
+  });
+}
+
+// --- AI Chat ---
+function renderAiChat(workspace) {
+  workspace.innerHTML = `
+    <div class="info-card" style="background: linear-gradient(135deg, #10b98122, #05966922); border-color: #10b981;">
+      <span class="info-icon">💬</span>
+      <p>Yapay zekaya istediğiniz herhangi bir soruyu sorun veya bir konu hakkında yardım isteyin. Arka planda en güçlü <strong>Google Gemini</strong> modelleri kullanılarak size anında cevap verilir.</p>
+    </div>
+    
+    <div class="tool-input-group" style="margin-top: 1.5rem;">
+      <label class="tool-label">Soru veya İsteğiniz</label>
+      <textarea class="tool-input" id="askInput" rows="4" placeholder="Örn: Python'da liste nasıl sıralanır? veya Mars'a yolculuk ne kadar sürer?"></textarea>
+    </div>
+
+    <div class="tool-btn-row">
+      <button class="tool-btn tool-btn-primary" id="askBtn" disabled style="background: linear-gradient(135deg, #10b981, #059669); border-color: #059669;">🚀 Gönder</button>
+    </div>
+
+    <div id="askResultContainer" style="display: none; margin-top: 1.5rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <label class="tool-label" style="margin: 0;">🤖 Yapay Zeka Yanıtı</label>
+        <button id="copyChatBtn" style="background: none; border: none; color: #10b981; cursor: pointer; display: flex; align-items: center; gap: 5px; font-weight: bold; font-family: inherit; font-size: 0.9rem;">
+          📋 Kopyala
+        </button>
+      </div>
+      <textarea class="tool-input" id="askOutput" rows="8" readonly style="background-color: #1e293b; border-color: #10b98155; color: #f8fafc; line-height: 1.6;"></textarea>
+    </div>
+  `;
+
+  const checkInputs = () => {
+    $('askBtn').disabled = !$('askInput').value.trim();
+  };
+
+  $('askInput').addEventListener('input', checkInputs);
+
+  $('askInput').addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = (this.scrollHeight) + 'px';
+  });
+
+  $('copyChatBtn').addEventListener('click', () => {
+    const text = $('askOutput').value;
+    if (text) {
+      navigator.clipboard.writeText(text);
+      showToast('✅ Yanıt panoya kopyalandı');
+    }
+  });
+
+  $('askBtn').addEventListener('click', async () => {
+    const question = $('askInput').value.trim();
+    if (!question) return;
+
+    const btn = $('askBtn');
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Düşünüyor...';
+    $('askResultContainer').style.display = 'none';
+
+    try {
+      const response = await fetch('https://yt-sunucu.onrender.com/api/ai/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Sunucuya ulaşılamadı.');
+      }
+
+      const responseData = await response.json();
+      
+      if (!responseData || responseData.status !== "success" || !responseData.text) {
+        throw new Error('Geçersiz yapay zeka yanıtı.');
+      }
+
+      $('askOutput').value = responseData.text.trim();
+      $('askResultContainer').style.display = 'block';
+      
+      $('askOutput').style.height = 'auto';
+      $('askOutput').style.height = ($('askOutput').scrollHeight) + 'px';
+      
+    } catch (err) {
+      showToast('❌ Hata: ' + err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '🚀 Gönder';
     }
   });
 }
