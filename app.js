@@ -774,13 +774,13 @@ function renderAiEmailImprover(workspace) {
     $('aiResultContainer').style.display = 'none';
 
     try {
-      const prompt = \`Sen uzman bir metin yazarısın ve kurumsal iletişim danışmanısın. Kullanıcı sana aceleyle, özensiz veya günlük dille yazılmış bir metin/fikir verecek. Senin görevin bu fikri alıp, **\${tone}** tonunda mükemmel bir şekilde yeniden yazmak. 
+      const prompt = `Sen uzman bir metin yazarısın ve kurumsal iletişim danışmanısın. Kullanıcı sana aceleyle, özensiz veya günlük dille yazılmış bir metin/fikir verecek. Senin görevin bu fikri alıp, **${tone}** tonunda mükemmel bir şekilde yeniden yazmak. 
 E-posta veya mesaj formatında hazırla. Başka hiçbir açıklama, yorum veya "İşte metniniz" gibi giriş cümleleri yazma. Sadece doğrudan kullanılabilir, profesyonel son metni ver.
       
 Kullanıcının metni:
-"\${draftText}"\`;
+"${draftText}"`;
 
-      const response = await fetch(\`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=\${apiKey}\`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
