@@ -16,8 +16,6 @@ const TOOLS = {
     color: 'pdf',
     tools: [
       { id: 'word-to-pdf', name: 'Word → PDF', icon: '📝', desc: 'Word dosyasını PDF\'e dönüştürür', quick: true },
-      { id: 'excel-to-pdf', name: 'Excel → PDF', icon: '📊', desc: 'Excel dosyasını PDF\'e dönüştürür' },
-      { id: 'ppt-to-pdf', name: 'PowerPoint → PDF', icon: '📽️', desc: 'Sunum dosyasını PDF\'e dönüştürür' },
       { id: 'img-to-pdf', name: 'PNG/JPG → PDF', icon: '🖼️', desc: 'Resimleri PDF\'e dönüştürür', quick: true },
       { id: 'pdf-to-word', name: 'PDF → Word', icon: '📃', desc: 'PDF\'i Word dosyasına dönüştürür' },
       { id: 'pdf-to-jpg', name: 'PDF → JPG', icon: '📸', desc: 'PDF sayfalarını resme dönüştürür' },
@@ -30,6 +28,16 @@ const TOOLS = {
       { id: 'pdf-delete-pages', name: 'PDF Sayfa Silme', icon: '🗑️', desc: 'PDF\'ten sayfa siler' },
       { id: 'pdf-watermark', name: 'PDF Filigran Ekleme', icon: '💧', desc: 'PDF\'e filigran ekler' },
       { id: 'pdf-ocr', name: 'PDF\'ten Metin Çekme', icon: '🔍', desc: 'PDF\'ten metin çıkarır (OCR)' },
+    ]
+  },
+
+  // ─── Profesyonel İş & Yapay Zeka ───────────────────────
+  professional: {
+    name: 'Profesyonel İş & Yapay Zeka',
+    icon: '💼',
+    color: 'professional',
+    tools: [
+      { id: 'ai-email', name: 'Yapay Zeka E-posta Asistanı', icon: '🤖', desc: 'Özensiz metinleri profesyonel e-postalara dönüştürür', quick: true }
     ]
   },
 
@@ -313,8 +321,6 @@ function renderTool(toolId) {
   const renderers = {
     // PDF Tools
     'word-to-pdf': renderFileConverter,
-    'excel-to-pdf': renderFileConverter,
-    'ppt-to-pdf': renderFileConverter,
     'img-to-pdf': renderImgToPdf,
     'pdf-to-word': renderPdfToWord,
     'pdf-to-jpg': renderPdfToJpg,
@@ -327,6 +333,9 @@ function renderTool(toolId) {
     'pdf-delete-pages': renderPdfDeletePages,
     'pdf-watermark': renderPdfWatermark,
     'pdf-ocr': renderPdfOcr,
+
+    // Professional & AI Tools
+    'ai-email': renderAiEmailImprover,
 
     // Video Tools
     'video-download': renderVideoDownload,
@@ -594,12 +603,6 @@ function renderFileConverter(workspace) {
   if (tool.id === 'word-to-pdf') {
     acceptType = '.doc,.docx';
     formatList = ['DOC', 'DOCX'];
-  } else if (tool.id === 'excel-to-pdf') {
-    acceptType = '.xls,.xlsx,.csv';
-    formatList = ['XLS', 'XLSX', 'CSV'];
-  } else if (tool.id === 'ppt-to-pdf') {
-    acceptType = '.ppt,.pptx';
-    formatList = ['PPT', 'PPTX'];
   }
 
   workspace.innerHTML = `<div id="fileUploadContainer"></div>
@@ -633,10 +636,6 @@ function renderFileConverter(workspace) {
     try {
       if (tool.id === 'word-to-pdf') {
         await convertWordToPdf(files[0]);
-      } else if (tool.id === 'excel-to-pdf') {
-        await convertExcelToPdf(files[0]);
-      } else if (tool.id === 'ppt-to-pdf') {
-        await convertPptToPdf(files[0]);
       }
     } catch (err) {
       showProgress(false);
@@ -689,280 +688,136 @@ async function convertWordToPdf(file) {
   }
 }
 
-// --- Excel → PDF conversion using SheetJS ---
-async function convertExcelToPdf(file) {
-  updateProgress(20, 'Excel dosyası okunuyor...', '');
-
-  const arrayBuf = await readFileAsArrayBuffer(file);
-
-  updateProgress(40, 'Tablo verileri işleniyor...', '');
-
-  let workbook;
-  try {
-    workbook = XLSX.read(arrayBuf, { type: 'array' });
-  } catch(e) {
-    throw new Error('Excel dosyası okunamadı. Dosyanın geçerli bir Excel dosyası olduğundan emin olun.');
-  }
-
-  const container = document.createElement('div');
-  container.style.cssText = 'padding: 10mm; font-family: Arial, sans-serif; font-size: 10px; color: #000; background: #fff; width: 100%; box-sizing: border-box;';
-
-  for (let si = 0; si < workbook.SheetNames.length; si++) {
-    const sheetName = workbook.SheetNames[si];
-    const sheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-
-    if (data.length === 0) continue;
-
-    updateProgress(40 + (si / workbook.SheetNames.length) * 50, `Sayfa: ${sheetName}`, `${si + 1}/${workbook.SheetNames.length} tablo`);
-
-    const sheetDiv = document.createElement('div');
-    if (si > 0) sheetDiv.style.pageBreakBefore = 'always';
+// --- AI Email Improver ---
+function renderAiEmailImprover(workspace) {
+  workspace.innerHTML = `
+    <div class="info-card" style="background: linear-gradient(135deg, #10b98122, #05966922); border-color: #10b981;">
+      <span class="info-icon">🤖</span>
+      <p>Özensiz veya hızlıca yazdığınız metinleri saniyeler içinde <strong>profesyonel, kurumsal ve kusursuz</strong> bir e-postaya dönüştürür. Ücretsiz Google Gemini API altyapısını kullanır.</p>
+    </div>
     
-    sheetDiv.innerHTML = `<h2 style="font-size: 14px; margin-bottom: 10px; color: #333;">${sheetName}</h2>`;
-    
-    let tableHtml = '<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; table-layout: fixed; word-wrap: break-word;">';
-    for (let r = 0; r < data.length; r++) {
-      tableHtml += '<tr>';
-      const isHeader = r === 0;
-      for (let c = 0; c < data[r].length; c++) {
-        const cellText = String(data[r][c] !== undefined ? data[r][c] : '');
-        if (isHeader) {
-          tableHtml += `<th style="border: 1px solid #ccc; padding: 6px; background-color: #3c3c64; color: #fff; font-weight: bold; overflow: hidden; text-align: left;">${cellText}</th>`;
-        } else {
-          const bg = r % 2 === 0 ? '#f5f5fa' : '#ffffff';
-          tableHtml += `<td style="border: 1px solid #ccc; padding: 6px; background-color: ${bg}; overflow: hidden;">${cellText}</td>`;
-        }
-      }
-      tableHtml += '</tr>';
-    }
-    tableHtml += '</table>';
-    sheetDiv.innerHTML += tableHtml;
-    container.appendChild(sheetDiv);
+    <div class="tool-input-group" id="apiKeyGroup" style="margin-top: 1rem;">
+      <label class="tool-label">🔑 Gemini API Anahtarı (Sadece ilk kullanımda gerekir)</label>
+      <input type="password" class="tool-input" id="geminiApiKey" placeholder="AI Studio'dan aldığınız anahtarı buraya yapıştırın">
+      <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.5rem;">
+        API anahtarınız yok mu? <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #10b981; text-decoration: underline;">Buraya tıklayarak</a> Google hesabınızla tamamen ücretsiz alabilirsiniz. Anahtar sadece sizin tarayıcınızda saklanır.
+      </div>
+    </div>
+
+    <div class="tool-input-group" style="margin-top: 1rem;">
+      <label class="tool-label">✍️ Taslak Metniniz</label>
+      <textarea class="tool-input" id="draftInput" rows="5" placeholder="Örn: abi şu işi halledemedik yarın göndericem kusura bakma..."></textarea>
+    </div>
+
+    <div class="tool-input-group">
+      <label class="tool-label">🎯 İstenen Ton / Üslup</label>
+      <select class="tool-select" id="emailTone">
+        <option value="Çok profesyonel ve ciddi bir kurumsal e-posta">Kurumsal & Ciddi</option>
+        <option value="Profesyonel ama samimi ve kibar bir e-posta">Profesyonel & Samimi</option>
+        <option value="Özür dileyen, durumu açıklayan profesyonel bir e-posta">Özür & Telafi</option>
+        <option value="İkna edici, pazarlama/satış odaklı profesyonel bir e-posta">İkna Edici / Satış</option>
+      </select>
+    </div>
+
+    <div class="tool-btn-row">
+      <button class="tool-btn tool-btn-primary" id="improveBtn" disabled style="background: linear-gradient(135deg, #10b981, #059669); border-color: #059669;">✨ Profesyonelleştir</button>
+    </div>
+
+    <div id="aiResultContainer" style="display: none; margin-top: 1.5rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <label class="tool-label" style="margin: 0;">✅ Profesyonel Sonuç</label>
+        <button id="copyAiBtn" style="background: none; border: none; color: #10b981; cursor: pointer; display: flex; align-items: center; gap: 5px; font-weight: bold; font-family: inherit; font-size: 0.9rem;">
+          📋 Kopyala
+        </button>
+      </div>
+      <textarea class="tool-input" id="aiOutput" rows="8" readonly style="background-color: #1e293b; border-color: #10b98155; color: #f8fafc;"></textarea>
+    </div>
+  `;
+
+  const savedKey = localStorage.getItem('gemini_api_key');
+  if (savedKey) {
+    $('geminiApiKey').value = savedKey;
   }
 
-    const opt = {
-      margin:       0,
-      filename:     file.name.replace(/\.(xlsx?|csv)$/i, '.pdf'),
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' },
-      pagebreak:    { mode: ['css', 'legacy'] }
-    };
+  const checkInputs = () => {
+    $('improveBtn').disabled = !$('geminiApiKey').value.trim() || !$('draftInput').value.trim();
+  };
 
-  try {
-    const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
-    updateProgress(95, 'PDF kaydediliyor...', '');
-    showSuccessOverlay(pdfBlob, opt.filename, `Excel → PDF dönüştürüldü (${workbook.SheetNames.length} tablo, ${formatFileSize(pdfBlob.size)})`);
-  } catch (e) {
-    throw new Error('PDF oluşturma sırasında bir hata oluştu: ' + e.message);
-  }
-}
+  $('geminiApiKey').addEventListener('input', checkInputs);
+  $('draftInput').addEventListener('input', checkInputs);
 
-// --- PowerPoint → PDF conversion ---
-async function convertPptToPdf(file) {
-  updateProgress(20, 'Sunum dosyası okunuyor...', '');
+  $('draftInput').addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = (this.scrollHeight) + 'px';
+  });
 
-  const arrayBuf = await readFileAsArrayBuffer(file);
-
-  updateProgress(30, 'Slaytlar çıkarılıyor...', '');
-
-  try {
-    // Use JSZip-like approach to extract PPTX content
-    const zip = await loadZipFromArrayBuffer(arrayBuf);
-    const slides = [];
-
-    // Get slide count from presentation.xml
-    const presentationXml = await getZipFileText(zip, 'ppt/presentation.xml');
-    const slideMatches = presentationXml.match(/r:id="rId(\d+)"/g) || [];
-
-    // Extract slide content
-    let slideIndex = 1;
-    while (true) {
-      try {
-        const slideXml = await getZipFileText(zip, `ppt/slides/slide${slideIndex}.xml`);
-        if (!slideXml) break;
-
-        // Extract text content from slide XML
-        const textParts = [];
-        // Match text runs
-        const textRegex = /<a:t>([^<]*)<\/a:t>/g;
-        let match;
-        while ((match = textRegex.exec(slideXml)) !== null) {
-          textParts.push(match[1]);
-        }
-
-        slides.push({
-          index: slideIndex,
-          texts: textParts
-        });
-        slideIndex++;
-      } catch(e) {
-        break;
-      }
+  $('copyAiBtn').addEventListener('click', () => {
+    const text = $('aiOutput').value;
+    if (text) {
+      navigator.clipboard.writeText(text);
+      showToast('✅ Metin panoya kopyalandı');
     }
+  });
 
-    if (slides.length === 0) {
-      throw new Error('Slayt bulunamadı. Dosyanın geçerli bir .pptx dosyası olduğundan emin olun.');
-    }
+  $('improveBtn').addEventListener('click', async () => {
+    const apiKey = $('geminiApiKey').value.trim();
+    const draftText = $('draftInput').value.trim();
+    const tone = $('emailTone').value;
 
-    updateProgress(50, 'PDF oluşturuluyor...', `${slides.length} slayt bulundu`);
+    if (!apiKey || !draftText) return;
 
-    const container = document.createElement('div');
-    container.style.cssText = 'font-family: Arial, sans-serif; background: #fff; width: 100%;';
+    localStorage.setItem('gemini_api_key', apiKey);
 
-    for (let i = 0; i < slides.length; i++) {
-      updateProgress(50 + (i / slides.length) * 40, `Slayt ${i + 1}/${slides.length}`, '');
-
-      const slide = slides[i];
-      const slideDiv = document.createElement('div');
-      slideDiv.style.cssText = 'width: 297mm; height: 167mm; background: #fff; padding: 40px; box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always;';
-
-      const slideNum = document.createElement('div');
-      slideNum.style.cssText = 'position: absolute; bottom: 20px; right: 20px; font-size: 12px; color: #999;';
-      slideNum.textContent = `Slayt ${slide.index}`;
-      slideDiv.appendChild(slideNum);
-
-      let isFirstText = true;
-
-      for (const text of slide.texts) {
-        if (!text.trim()) continue;
-
-        const textEl = document.createElement('div');
-        if (isFirstText) {
-          textEl.style.cssText = 'font-size: 28px; font-weight: bold; margin-bottom: 20px; color: #333; line-height: 1.3;';
-          textEl.textContent = text;
-          isFirstText = false;
-        } else {
-          textEl.style.cssText = 'font-size: 18px; margin-bottom: 10px; color: #444; padding-left: 20px; position: relative; line-height: 1.4;';
-          textEl.innerHTML = `<span style="position: absolute; left: 0;">•</span> ${text}`;
-        }
-        slideDiv.appendChild(textEl);
-      }
-
-      if (slide.texts.filter(t => t.trim()).length === 0) {
-        const placeholder = document.createElement('div');
-        placeholder.style.cssText = 'font-size: 20px; color: #aaa; text-align: center; margin-top: 150px;';
-        placeholder.textContent = `Slayt ${slide.index} (görsel içerik)`;
-        slideDiv.appendChild(placeholder);
-      }
-
-      container.appendChild(slideDiv);
-    }
-
-    const opt = {
-      margin:       0,
-      filename:     file.name.replace(/\.(pptx?|ppt)$/i, '.pdf'),
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true },
-      jsPDF:        { unit: 'mm', format: [297, 167], orientation: 'landscape' },
-      pagebreak:    { mode: ['css', 'legacy'] }
-    };
+    const btn = $('improveBtn');
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Yapay zeka düşünüyor...';
+    $('aiResultContainer').style.display = 'none';
 
     try {
-      const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
-      updateProgress(95, 'PDF kaydediliyor...', '');
-      showSuccessOverlay(pdfBlob, opt.filename, `PowerPoint → PDF dönüştürüldü (${slides.length} slayt, ${formatFileSize(pdfBlob.size)})`);
-    } catch (e) {
-      throw new Error('PDF oluşturma sırasında bir hata oluştu: ' + e.message);
+      const prompt = \`Sen uzman bir metin yazarısın ve kurumsal iletişim danışmanısın. Kullanıcı sana aceleyle, özensiz veya günlük dille yazılmış bir metin/fikir verecek. Senin görevin bu fikri alıp, **\${tone}** tonunda mükemmel bir şekilde yeniden yazmak. 
+E-posta veya mesaj formatında hazırla. Başka hiçbir açıklama, yorum veya "İşte metniniz" gibi giriş cümleleri yazma. Sadece doğrudan kullanılabilir, profesyonel son metni ver.
+      
+Kullanıcının metni:
+"\${draftText}"\`;
+
+      const response = await fetch(\`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=\${apiKey}\`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7 }
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error?.message || 'API Hatası');
+      }
+
+      const data = await response.json();
+      const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!generatedText) throw new Error('Geçersiz yapay zeka yanıtı.');
+
+      $('aiOutput').value = generatedText.trim();
+      $('aiResultContainer').style.display = 'block';
+      
+      $('aiOutput').style.height = 'auto';
+      $('aiOutput').style.height = ($('aiOutput').scrollHeight) + 'px';
+      
+      showToast('✨ E-postanız profesyonelleştirildi');
+    } catch (err) {
+      if (err.message.includes('API key not valid')) {
+        showToast('❌ Geçersiz API Anahtarı. Lütfen doğru yazdığınızdan emin olun.', true);
+        localStorage.removeItem('gemini_api_key');
+      } else {
+        showToast('❌ Hata oluştu: ' + err.message, true);
+      }
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '✨ Profesyonelleştir';
     }
-
-  } catch(err) {
-    if (err.message.includes('Slayt bulunamadı') || err.message.includes('.pptx')) {
-      throw err;
-    }
-    throw new Error('Sunum dosyası işlenemedi. Lütfen .pptx formatında olduğundan emin olun.');
-  }
-}
-
-// --- ZIP helper functions for PPTX parsing ---
-async function loadZipFromArrayBuffer(arrayBuf) {
-  // Minimal ZIP parser for PPTX files
-  const data = new Uint8Array(arrayBuf);
-  const files = {};
-
-  // Find end of central directory
-  let eocdOffset = -1;
-  for (let i = data.length - 22; i >= 0; i--) {
-    if (data[i] === 0x50 && data[i+1] === 0x4B && data[i+2] === 0x05 && data[i+3] === 0x06) {
-      eocdOffset = i;
-      break;
-    }
-  }
-  if (eocdOffset === -1) throw new Error('Geçersiz dosya formatı');
-
-  const view = new DataView(arrayBuf);
-  const cdOffset = view.getUint32(eocdOffset + 16, true);
-  const cdSize = view.getUint32(eocdOffset + 12, true);
-  const entryCount = view.getUint16(eocdOffset + 10, true);
-
-  let offset = cdOffset;
-  for (let i = 0; i < entryCount; i++) {
-    if (view.getUint32(offset, true) !== 0x02014B50) break;
-
-    const compMethod = view.getUint16(offset + 10, true);
-    const compSize = view.getUint32(offset + 20, true);
-    const uncompSize = view.getUint32(offset + 24, true);
-    const nameLen = view.getUint16(offset + 28, true);
-    const extraLen = view.getUint16(offset + 30, true);
-    const commentLen = view.getUint16(offset + 32, true);
-    const localOffset = view.getUint32(offset + 42, true);
-
-    const nameBytes = data.slice(offset + 46, offset + 46 + nameLen);
-    const fileName = new TextDecoder().decode(nameBytes);
-
-    // Read local file header to get data offset
-    const localNameLen = view.getUint16(localOffset + 26, true);
-    const localExtraLen = view.getUint16(localOffset + 28, true);
-    const dataOffset = localOffset + 30 + localNameLen + localExtraLen;
-
-    files[fileName] = {
-      compressed: compMethod === 8,
-      compSize,
-      uncompSize,
-      dataOffset,
-      data: data.slice(dataOffset, dataOffset + compSize)
-    };
-
-    offset += 46 + nameLen + extraLen + commentLen;
-  }
-
-  return files;
-}
-
-async function getZipFileText(zip, path) {
-  const entry = zip[path];
-  if (!entry) return null;
-
-  let bytes;
-  if (entry.compressed) {
-    // Use DecompressionStream for deflate
-    const ds = new DecompressionStream('deflate-raw');
-    const writer = ds.writable.getWriter();
-    const reader = ds.readable.getReader();
-    
-    writer.write(entry.data);
-    writer.close();
-    
-    const chunks = [];
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-    }
-    
-    const totalLen = chunks.reduce((acc, c) => acc + c.length, 0);
-    bytes = new Uint8Array(totalLen);
-    let pos = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, pos);
-      pos += chunk.length;
-    }
-  } else {
-    bytes = entry.data;
-  }
-
-  return new TextDecoder().decode(bytes);
+  });
 }
 
 // --- IMG → PDF ---
