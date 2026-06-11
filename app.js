@@ -36,7 +36,8 @@ const TOOLS = {
     color: 'professional',
     tools: [
       { id: 'ai-email', name: 'Yapay Zeka E-posta Asistanı', icon: '🤖', desc: 'Özensiz metinleri profesyonel e-postalara dönüştürür' },
-      { id: 'ai-chat', name: 'Yapay Zekaya Sor', icon: '💬', desc: 'İstediğiniz soruyu sorun, yapay zeka anında cevaplasın' }
+      { id: 'ai-chat', name: 'Yapay Zekaya Sor', icon: '💬', desc: 'İstediğiniz soruyu sorun, yapay zeka anında cevaplasın' },
+      { id: 'clipboard-sync', name: 'Geçici Pano & Dosya Paylaşım', icon: '📱', desc: 'Cihazlar arası metin ve dosya aktarımı (10dk TTL)' }
     ]
   },
 
@@ -388,6 +389,7 @@ function renderTool(toolId) {
     // Professional & AI Tools
     'ai-email': renderAiEmailImprover,
     'ai-chat': renderAiChat,
+    'clipboard-sync': renderClipboardSync,
 
     // Video Tools
     'video-download': renderVideoDownload,

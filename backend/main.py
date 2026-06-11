@@ -1,4 +1,6 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form
+import time
+import asyncio
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import yt_dlp
@@ -9,6 +11,38 @@ import urllib.request
 from pydantic import BaseModel
 
 app = FastAPI()
+
+# --- Pano/Dosya Paylaşım DB ve TTL Ayarları ---
+pano_db = {
+    "texts": [],
+    "files": []
+}
+TTL_SECONDS = 600  # 10 dakika
+PANO_DIR = "/tmp/pano_files" if os.name != "nt" else os.path.join(os.environ.get("TEMP", "."), "pano_files")
+os.makedirs(PANO_DIR, exist_ok=True)
+
+async def pano_cleanup_task():
+    while True:
+        now = time.time()
+        pano_db["texts"] = [t for t in pano_db["texts"] if now - t["timestamp"] < TTL_SECONDS]
+        
+        valid_files = []
+        for f in pano_db["files"]:
+            if now - f["timestamp"] < TTL_SECONDS:
+                valid_files.append(f)
+            else:
+                try:
+                    if os.path.exists(f["filepath"]):
+                        os.remove(f["filepath"])
+                except Exception:
+                    pass
+        pano_db["files"] = valid_files
+        await asyncio.sleep(10)
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(pano_cleanup_task())
+
 
 # Frontend'in bu API'ye erişebilmesi için CORS ayarları (GitHub Pages vb. için)
 app.add_middleware(
@@ -151,4 +185,45 @@ async def ask_ai(req: AskRequest):
             last_error = str(e)
             continue
             
-    raise HTTPException(status_code=500, detail=f"Yapay zeka yanıt veremedi. Son hata: {last_error}")
+            raise HTTPException(status_code=500, detail=f"Yapay zeka yanıt veremedi. Son hata: {last_error}")
+
+# --- Pano (Clipboard) Endpoints ---
+@app.post("/api/clipboard/text")
+async def clipboard_receive_text(text: str = Form(...)):
+    pano_db["texts"].insert(0, {
+        "id": str(uuid.uuid4()),
+        "content": text,
+        "timestamp": time.time(),
+        "time_str": time.strftime("%H:%M:%S")
+    })
+    return {"status": "success"}
+
+@app.post("/api/clipboard/file")
+async def clipboard_receive_file(file: UploadFile = File(...)):
+    file_id = str(uuid.uuid4())
+    ext = file.filename.split('.')[-1] if '.' in file.filename else ''
+    safe_name = f"{file_id}.{ext}" if ext else file_id
+    filepath = os.path.join(PANO_DIR, safe_name)
+    
+    with open(filepath, "wb") as f:
+        f.write(await file.read())
+    
+    pano_db["files"].insert(0, {
+        "id": file_id,
+        "filename": file.filename,
+        "filepath": filepath,
+        "timestamp": time.time(),
+        "time_str": time.strftime("%H:%M:%S")
+    })
+    return {"status": "success"}
+
+@app.get("/api/clipboard/data")
+async def clipboard_get_data():
+    return pano_db
+
+@app.get("/api/clipboard/download/{file_id}")
+async def clipboard_download_file(file_id: str):
+    for f in pano_db["files"]:
+        if f["id"] == file_id and os.path.exists(f["filepath"]):
+            return FileResponse(path=f["filepath"], filename=f["filename"])
+    raise HTTPException(status_code=404, detail="Dosya bulunamadı veya süresi doldu")
