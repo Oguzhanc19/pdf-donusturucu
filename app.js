@@ -3954,32 +3954,133 @@ if ('serviceWorker' in navigator) {
 
 function renderClipboardSync(workspace) {
   workspace.innerHTML = `
-    <div class="info-card" style="background: linear-gradient(135deg, #f0fdfa, #ccfbf1); border-color: #14b8a6;">
-      <span class="info-icon">📱</span>
-      <p>Cihazlarınız arasında hızlıca <strong>metin ve dosya</strong> transferi yapın. Yüklenen veriler <strong>10 dakika sonra</strong> otomatik olarak tamamen silinir.</p>
-    </div>
-
-    <div class="tool-input-group" style="margin-top: 1rem;">
-      <label class="tool-label">✍️ Metin Gönder</label>
-      <textarea class="tool-input" id="clipboardText" rows="4" placeholder="Kopyaladığınız metni buraya yapıştırın..."></textarea>
-      <button class="tool-btn tool-btn-primary" id="sendTextBtn" style="margin-top: 10px; background: #14b8a6; border-color: #0d9488;">📤 Metni Gönder</button>
-    </div>
-
-    <div class="tool-input-group" style="margin-top: 2rem;">
-      <label class="tool-label">📁 Dosya Gönder</label>
-      <div id="clipboardFileContainer"></div>
-      <button class="tool-btn tool-btn-primary" id="sendFileBtn" disabled style="margin-top: 10px; background: #14b8a6; border-color: #0d9488;">📤 Dosyayı Yükle</button>
-    </div>
-
-    <div class="tool-input-group" style="margin-top: 2rem;">
-      <label class="tool-label" style="display: flex; justify-content: space-between;">
-        <span>📥 Gelen Kutusu</span>
-        <button id="refreshClipboardBtn" style="background:none; border:none; color:#14b8a6; cursor:pointer; font-weight:bold;">🔄 Yenile</button>
-      </label>
-      <div id="clipboardDataList" style="display: flex; flex-direction: column; gap: 10px;">
-        <div style="text-align:center; padding: 20px; color:#64748b;">Veriler yükleniyor...</div>
+    <!-- Top Info Card -->
+    <div style="background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(168,85,247,0.1)); border: 1px solid rgba(99,102,241,0.2); border-radius: 16px; padding: 1.5rem; margin-bottom: 2rem; position: relative; overflow: hidden;">
+      <div style="position: absolute; top: -50px; right: -50px; width: 100px; height: 100px; background: rgba(168,85,247,0.2); filter: blur(30px); border-radius: 50%;"></div>
+      <div style="display: flex; align-items: flex-start; gap: 1rem; position: relative; z-index: 1;">
+        <div style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #6366f1, #a855f7); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0; box-shadow: 0 8px 16px rgba(99,102,241,0.25);">📱</div>
+        <div>
+          <h3 style="margin-bottom: 0.25rem; font-size: 1.1rem; color: #fff;">Sihirli Pano</h3>
+          <p style="color: rgba(255,255,255,0.7); font-size: 0.85rem; line-height: 1.5;">Cihazlarınız arasında hızlıca <strong>metin ve dosya</strong> transferi yapın. Veriler <strong>10 dakika sonra</strong> tamamen silinir.</p>
+        </div>
       </div>
     </div>
+
+    <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem;">
+      <!-- Send Text Section -->
+      <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.5rem;">
+        <label style="display: block; margin-bottom: 0.75rem; font-weight: 600; color: #f0f0ff; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+          <span style="color: #6366f1;">✍️</span> Metin Paylaş
+        </label>
+        <textarea id="clipboardText" rows="3" style="width: 100%; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1rem; color: #fff; font-size: 0.9rem; resize: vertical; transition: all 0.3s ease; outline: none; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);" placeholder="Kopyaladığınız metni buraya yapıştırın..."></textarea>
+        <button id="sendTextBtn" style="width: 100%; margin-top: 1rem; padding: 0.875rem; border-radius: 12px; border: none; background: linear-gradient(135deg, #6366f1, #a855f7); color: white; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(99,102,241,0.3);">
+          <span>📤</span> Metni Gönder
+        </button>
+      </div>
+
+      <!-- Send File Section -->
+      <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.5rem;">
+        <label style="display: block; margin-bottom: 0.75rem; font-weight: 600; color: #f0f0ff; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+          <span style="color: #10b981;">📁</span> Dosya Paylaş
+        </label>
+        <div id="clipboardFileContainer"></div>
+        <button id="sendFileBtn" disabled style="width: 100%; margin-top: 1rem; padding: 0.875rem; border-radius: 12px; border: none; background: linear-gradient(135deg, #10b981, #06b6d4); color: white; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(16,185,129,0.3); opacity: 0.5;">
+          <span>📤</span> Dosyayı Yükle
+        </button>
+      </div>
+    </div>
+
+    <!-- Inbox Section -->
+    <div style="margin-top: 2.5rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; overflow: hidden;">
+      <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2);">
+        <label style="font-weight: 600; color: #f0f0ff; font-size: 1rem; display: flex; align-items: center; gap: 8px; margin: 0;">
+          <span style="color: #f59e0b;">📥</span> Gelen Kutusu
+        </label>
+        <button id="refreshClipboardBtn" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 0.4rem 0.8rem; border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 600; transition: all 0.3s ease; display: flex; align-items: center; gap: 5px;">
+          🔄 Yenile
+        </button>
+      </div>
+      <div id="clipboardDataList" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; min-height: 150px;">
+        <div style="text-align: center; padding: 2rem; color: rgba(255,255,255,0.4); display: flex; flex-direction: column; align-items: center; gap: 10px;">
+          <div style="width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #6366f1; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+          <span>Veriler senkronize ediliyor...</span>
+        </div>
+      </div>
+    </div>
+
+    <style>
+      #clipboardText:focus {
+        border-color: #6366f1 !important;
+        box-shadow: 0 0 0 3px rgba(99,102,241,0.2) !important;
+      }
+      #sendTextBtn:hover:not(:disabled), #sendFileBtn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        filter: brightness(1.1);
+      }
+      #sendTextBtn:active:not(:disabled), #sendFileBtn:active:not(:disabled) {
+        transform: translateY(0);
+      }
+      #sendFileBtn:not(:disabled) {
+        opacity: 1 !important;
+      }
+      #refreshClipboardBtn:hover {
+        background: rgba(255,255,255,0.1) !important;
+      }
+      .clipboard-item {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 12px;
+        padding: 1.25rem;
+        transition: all 0.3s ease;
+        animation: fadeUp 0.4s ease forwards;
+        position: relative;
+        overflow: hidden;
+      }
+      .clipboard-item::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: linear-gradient(to bottom, #6366f1, #a855f7);
+      }
+      .clipboard-item.file-item::before {
+        background: linear-gradient(to bottom, #10b981, #06b6d4);
+      }
+      .clipboard-item:hover {
+        background: rgba(255,255,255,0.05);
+        border-color: rgba(255,255,255,0.1);
+        transform: translateY(-2px);
+      }
+      .clipboard-btn {
+        background: rgba(255,255,255,0.1);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        padding: 0.5rem 0.8rem;
+        cursor: pointer;
+        font-size: 0.8rem;
+        font-weight: 600;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .clipboard-btn:hover {
+        background: #6366f1;
+      }
+      .clipboard-btn.download-btn:hover {
+        background: #10b981;
+      }
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
   `;
 
   // Render'da barındırılan sitenin API'sine istek yapmak için base URL:
@@ -3988,11 +4089,20 @@ function renderClipboardSync(workspace) {
                   ? 'http://127.0.0.1:8000' 
                   : API_URL;
 
+  const escapeHtml = (unsafe) => {
+    return unsafe
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  };
+
   const uploader = createFileUploadUI($('clipboardFileContainer'), {
     multiple: false,
-    icon: '📁',
-    title: 'Dosya Seçin',
-    subtitle: 'Paylaşmak istediğiniz dosyayı seçin',
+    icon: '☁️',
+    title: 'Dosya Yükle',
+    subtitle: 'Sürükleyip bırakın veya seçin',
     onFiles: (files) => {
       $('sendFileBtn').disabled = files.length === 0;
     }
@@ -4006,7 +4116,7 @@ function renderClipboardSync(workspace) {
     }
     
     $('sendTextBtn').disabled = true;
-    $('sendTextBtn').textContent = 'Gönderiliyor...';
+    $('sendTextBtn').innerHTML = '<div style="width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite;"></div> Gönderiliyor...';
     
     try {
       const fd = new FormData();
@@ -4024,7 +4134,7 @@ function renderClipboardSync(workspace) {
     }
     
     $('sendTextBtn').disabled = false;
-    $('sendTextBtn').textContent = '📤 Metni Gönder';
+    $('sendTextBtn').innerHTML = '<span>📤</span> Metni Gönder';
   });
 
   $('sendFileBtn').addEventListener('click', async () => {
@@ -4063,10 +4173,10 @@ function renderClipboardSync(workspace) {
         const data = await res.json();
         renderClipboardData(data);
       } else {
-         $('clipboardDataList').innerHTML = '<div style="text-align:center; color:red;">Bağlantı hatası! Sunucu yanıt vermiyor.</div>';
+         $('clipboardDataList').innerHTML = '<div style="text-align:center; padding: 2rem; color:#ef4444; background: rgba(239,68,68,0.1); border-radius: 12px; border: 1px solid rgba(239,68,68,0.2);">Bağlantı hatası! Sunucu yanıt vermiyor.</div>';
       }
     } catch(err) {
-      $('clipboardDataList').innerHTML = '<div style="text-align:center; color:red;">Bağlantı hatası! API bulunamadı.</div>';
+      $('clipboardDataList').innerHTML = '<div style="text-align:center; padding: 2rem; color:#ef4444; background: rgba(239,68,68,0.1); border-radius: 12px; border: 1px solid rgba(239,68,68,0.2);">Bağlantı hatası! API bulunamadı.</div>';
     }
   }
 
@@ -4075,27 +4185,39 @@ function renderClipboardSync(workspace) {
     let html = '';
     
     if (data.texts.length === 0 && data.files.length === 0) {
-      html = '<div style="text-align:center; padding: 20px; color:#64748b;">Henüz gelen veri yok.</div>';
+      html = '<div style="text-align:center; padding: 3rem 1rem; color:rgba(255,255,255,0.4);"><div style="font-size: 2rem; margin-bottom: 1rem; opacity: 0.5;">📭</div><p>Henüz gelen veri yok.</p></div>';
     }
     
     data.texts.forEach(t => {
       html += `
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; position: relative;">
-          <div style="font-size: 12px; color: #94a3b8; margin-bottom: 5px;">${t.time_str} (Metin)</div>
-          <div style="font-size: 14px; word-break: break-all; margin-bottom: 10px;">${escapeHtml(t.content)}</div>
-          <button onclick="navigator.clipboard.writeText('${t.content.replace(/'/g, "\\'")}')" style="background:#14b8a6; color:white; border:none; border-radius:4px; padding:5px 10px; cursor:pointer; font-size:12px;">Kopyala</button>
+        <div class="clipboard-item">
+          <div style="font-size: 0.75rem; color: rgba(255,255,255,0.4); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 5px;">
+            <span style="color: #6366f1;">📝</span> ${t.time_str}
+          </div>
+          <div style="font-size: 0.95rem; color: #fff; word-break: break-all; margin-bottom: 1rem; line-height: 1.5; background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">${escapeHtml(t.content).replace(/\\n/g, '<br>')}</div>
+          <div style="display: flex; justify-content: flex-end;">
+            <button onclick="navigator.clipboard.writeText('${escapeHtml(t.content).replace(/'/g, "\\'")}'); this.innerHTML='<span>✅</span> Kopyalandı'; setTimeout(() => this.innerHTML='<span>📋</span> Kopyala', 2000);" class="clipboard-btn">
+              <span>📋</span> Kopyala
+            </button>
+          </div>
         </div>
       `;
     });
     
     data.files.forEach(f => {
       html += `
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; position: relative; display: flex; justify-content: space-between; align-items: center;">
-          <div style="overflow: hidden; text-overflow: ellipsis;">
-            <div style="font-size: 12px; color: #94a3b8; margin-bottom: 5px;">${f.time_str} (Dosya)</div>
-            <div style="font-size: 14px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${f.filename}</div>
+        <div class="clipboard-item file-item">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-size: 0.75rem; color: rgba(255,255,255,0.4); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 5px;">
+                <span style="color: #10b981;">📁</span> ${f.time_str}
+              </div>
+              <div style="font-size: 1rem; color: #fff; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(f.filename)}</div>
+            </div>
+            <button onclick="window.open('${baseUrl}/api/clipboard/download/${f.id}', '_blank')" class="clipboard-btn download-btn">
+              <span>⬇️</span> İndir
+            </button>
           </div>
-          <button onclick="window.open('${baseUrl}/api/clipboard/download/${f.id}', '_blank')" style="background:#3b82f6; color:white; border:none; border-radius:4px; padding:8px 12px; cursor:pointer; font-size:12px; margin-left:10px;">İndir</button>
         </div>
       `;
     });
@@ -4103,6 +4225,10 @@ function renderClipboardSync(workspace) {
     list.innerHTML = html;
   }
 
-  $('refreshClipboardBtn').addEventListener('click', fetchClipboardData);
+  $('refreshClipboardBtn').addEventListener('click', () => {
+    $('clipboardDataList').innerHTML = '<div style="text-align: center; padding: 2rem; color: rgba(255,255,255,0.4); display: flex; flex-direction: column; align-items: center; gap: 10px;"><div style="width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #6366f1; border-radius: 50%; animation: spin 1s linear infinite;"></div><span>Veriler yenileniyor...</span></div>';
+    fetchClipboardData();
+  });
+  
   fetchClipboardData();
 }
