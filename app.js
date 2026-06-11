@@ -3966,6 +3966,20 @@ function renderClipboardSync(workspace) {
       </div>
     </div>
 
+    <!-- Connection Config -->
+    <div style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 1rem; margin-bottom: 2rem;">
+      <label style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: #f0f0ff; font-size: 0.9rem; margin-bottom: 0.5rem;">
+        <span>🌐</span> Masaüstü Uygulaması Bağlantı Adresi (IP)
+      </label>
+      <div style="display: flex; gap: 10px;">
+        <input type="text" id="apiUrlInput" placeholder="Örn: http://192.168.1.10:8000" style="flex: 1; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem; color: #fff; font-size: 0.9rem; outline: none;">
+        <button id="saveApiUrlBtn" style="background: linear-gradient(135deg, #10b981, #06b6d4); color: white; border: none; border-radius: 8px; padding: 0 1rem; font-weight: 600; cursor: pointer;">Kaydet</button>
+      </div>
+      <div style="font-size: 0.75rem; color: rgba(255,255,255,0.4); margin-top: 0.5rem;">
+        Masaüstü uygulamasında yazan IP adresini girin. Cihazlar aynı Wi-Fi ağında olmalıdır.
+      </div>
+    </div>
+
     <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem;">
       <!-- Send Text Section -->
       <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.5rem;">
@@ -4084,10 +4098,27 @@ function renderClipboardSync(workspace) {
   `;
 
   // Render'da barındırılan sitenin API'sine istek yapmak için base URL:
-  const API_URL = "https://pdf-donusturucu.onrender.com"; 
-  const baseUrl = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
+  const DEFAULT_API_URL = "http://192.168.1.100:8000"; 
+  let baseUrl = localStorage.getItem('pano_api_url') || ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
                   ? 'http://127.0.0.1:8000' 
-                  : API_URL;
+                  : DEFAULT_API_URL);
+
+  setTimeout(() => {
+    $('apiUrlInput').value = baseUrl;
+    $('apiUrlInput').addEventListener('focus', function() { this.style.borderColor = '#6366f1'; this.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.2)'; });
+    $('apiUrlInput').addEventListener('blur', function() { this.style.borderColor = 'var(--border-color)'; this.style.boxShadow = 'none'; });
+    $('saveApiUrlBtn').addEventListener('click', () => {
+      let url = $('apiUrlInput').value.trim();
+      if (url.endsWith('/')) url = url.slice(0, -1);
+      if (url && !url.startsWith('http')) url = 'http://' + url;
+      if (url) {
+        localStorage.setItem('pano_api_url', url);
+        baseUrl = url;
+        showToast('✅ Bağlantı adresi kaydedildi');
+        fetchClipboardData();
+      }
+    });
+  }, 100);
 
   const escapeHtml = (unsafe) => {
     return unsafe
@@ -4121,7 +4152,7 @@ function renderClipboardSync(workspace) {
     try {
       const fd = new FormData();
       fd.append("text", text);
-      const res = await fetch(baseUrl + '/api/clipboard/text', { method: 'POST', body: fd });
+      const res = await fetch(baseUrl + '/api/text', { method: 'POST', body: fd });
       if(res.ok) {
         showToast('✅ Metin başarıyla gönderildi');
         $('clipboardText').value = '';
@@ -4148,7 +4179,7 @@ function renderClipboardSync(workspace) {
     try {
       const fd = new FormData();
       fd.append("file", files[0]);
-      const res = await fetch(baseUrl + '/api/clipboard/file', { method: 'POST', body: fd });
+      const res = await fetch(baseUrl + '/api/file', { method: 'POST', body: fd });
       if(res.ok) {
         showProgress(false);
         showToast('✅ Dosya başarıyla yüklendi');
@@ -4168,7 +4199,7 @@ function renderClipboardSync(workspace) {
 
   async function fetchClipboardData() {
     try {
-      const res = await fetch(baseUrl + '/api/clipboard/data');
+      const res = await fetch(baseUrl + '/api/data');
       if (res.ok) {
         const data = await res.json();
         renderClipboardData(data);
@@ -4176,7 +4207,11 @@ function renderClipboardSync(workspace) {
          $('clipboardDataList').innerHTML = '<div style="text-align:center; padding: 2rem; color:#ef4444; background: rgba(239,68,68,0.1); border-radius: 12px; border: 1px solid rgba(239,68,68,0.2);">Bağlantı hatası! Sunucu yanıt vermiyor.</div>';
       }
     } catch(err) {
-      $('clipboardDataList').innerHTML = '<div style="text-align:center; padding: 2rem; color:#ef4444; background: rgba(239,68,68,0.1); border-radius: 12px; border: 1px solid rgba(239,68,68,0.2);">Bağlantı hatası! API bulunamadı.</div>';
+      if (window.location.protocol === 'https:' && baseUrl.startsWith('http://')) {
+          $('clipboardDataList').innerHTML = '<div style="text-align:center; padding: 2rem; color:#ef4444; background: rgba(239,68,68,0.1); border-radius: 12px; border: 1px solid rgba(239,68,68,0.2);"><b style="display:block;margin-bottom:10px;">HTTPS Tarayıcı Hatası</b>Telefonunuz bu siteye (https) bağlı olduğu için yerel bilgisayarınıza (http) bağlanamıyor.<br><br><b>Çözüm:</b><br>Masaüstü uygulamasında görünen IP adresini telefonunuzun tarayıcı çubuğuna doğrudan yazarak açın. (Örn: http://192.168.1.X:8000)</div>';
+      } else {
+          $('clipboardDataList').innerHTML = '<div style="text-align:center; padding: 2rem; color:#ef4444; background: rgba(239,68,68,0.1); border-radius: 12px; border: 1px solid rgba(239,68,68,0.2);">Bağlantı hatası! Masaüstü uygulaması açık mı? Doğru IP adresini girdiğinizden emin olun.</div>';
+      }
     }
   }
 
@@ -4214,9 +4249,7 @@ function renderClipboardSync(workspace) {
               </div>
               <div style="font-size: 1rem; color: #fff; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(f.filename)}</div>
             </div>
-            <button onclick="window.open('${baseUrl}/api/clipboard/download/${f.id}', '_blank')" class="clipboard-btn download-btn">
-              <span>⬇️</span> İndir
-            </button>
+            <div style="font-size: 0.8rem; color: #10b981; font-weight: bold;">✅ PC'ye Kaydedildi</div>
           </div>
         </div>
       `;
