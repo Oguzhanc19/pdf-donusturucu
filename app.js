@@ -3947,3 +3947,162 @@ if ('serviceWorker' in navigator) {
     .then(reg => console.log('SW registered:', reg.scope))
     .catch(err => console.log('SW registration failed:', err));
 }
+
+// ═══════════════════════════════════════════════════════════
+// GEÇİCİ PANO & DOSYA PAYLAŞIMI
+// ═══════════════════════════════════════════════════════════
+
+function renderClipboardSync(workspace) {
+  workspace.innerHTML = `
+    <div class="info-card" style="background: linear-gradient(135deg, #f0fdfa, #ccfbf1); border-color: #14b8a6;">
+      <span class="info-icon">📱</span>
+      <p>Cihazlarınız arasında hızlıca <strong>metin ve dosya</strong> transferi yapın. Yüklenen veriler <strong>10 dakika sonra</strong> otomatik olarak tamamen silinir.</p>
+    </div>
+
+    <div class="tool-input-group" style="margin-top: 1rem;">
+      <label class="tool-label">✍️ Metin Gönder</label>
+      <textarea class="tool-input" id="clipboardText" rows="4" placeholder="Kopyaladığınız metni buraya yapıştırın..."></textarea>
+      <button class="tool-btn tool-btn-primary" id="sendTextBtn" style="margin-top: 10px; background: #14b8a6; border-color: #0d9488;">📤 Metni Gönder</button>
+    </div>
+
+    <div class="tool-input-group" style="margin-top: 2rem;">
+      <label class="tool-label">📁 Dosya Gönder</label>
+      <div id="clipboardFileContainer"></div>
+      <button class="tool-btn tool-btn-primary" id="sendFileBtn" disabled style="margin-top: 10px; background: #14b8a6; border-color: #0d9488;">📤 Dosyayı Yükle</button>
+    </div>
+
+    <div class="tool-input-group" style="margin-top: 2rem;">
+      <label class="tool-label" style="display: flex; justify-content: space-between;">
+        <span>📥 Gelen Kutusu</span>
+        <button id="refreshClipboardBtn" style="background:none; border:none; color:#14b8a6; cursor:pointer; font-weight:bold;">🔄 Yenile</button>
+      </label>
+      <div id="clipboardDataList" style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="text-align:center; padding: 20px; color:#64748b;">Veriler yükleniyor...</div>
+      </div>
+    </div>
+  `;
+
+  // Render'da barındırılan sitenin API'sine istek yapmak için base URL:
+  const API_URL = "https://pdf-donusturucu.onrender.com"; 
+  const baseUrl = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
+                  ? 'http://127.0.0.1:8000' 
+                  : API_URL;
+
+  const uploader = createFileUploadUI($('clipboardFileContainer'), {
+    multiple: false,
+    icon: '📁',
+    title: 'Dosya Seçin',
+    subtitle: 'Paylaşmak istediğiniz dosyayı seçin',
+    onFiles: (files) => {
+      $('sendFileBtn').disabled = files.length === 0;
+    }
+  });
+
+  $('sendTextBtn').addEventListener('click', async () => {
+    const text = $('clipboardText').value.trim();
+    if (!text) {
+      showToast('Lütfen bir metin girin!', true);
+      return;
+    }
+    
+    $('sendTextBtn').disabled = true;
+    $('sendTextBtn').textContent = 'Gönderiliyor...';
+    
+    try {
+      const fd = new FormData();
+      fd.append("text", text);
+      const res = await fetch(baseUrl + '/api/clipboard/text', { method: 'POST', body: fd });
+      if(res.ok) {
+        showToast('✅ Metin başarıyla gönderildi');
+        $('clipboardText').value = '';
+        fetchClipboardData();
+      } else {
+        showToast('❌ Gönderim hatası!', true);
+      }
+    } catch(err) {
+      showToast('❌ Bağlantı hatası!', true);
+    }
+    
+    $('sendTextBtn').disabled = false;
+    $('sendTextBtn').textContent = '📤 Metni Gönder';
+  });
+
+  $('sendFileBtn').addEventListener('click', async () => {
+    const files = uploader.getFiles();
+    if(files.length === 0) return;
+    
+    $('sendFileBtn').disabled = true;
+    showProgress(true);
+    updateProgress(50, 'Dosya yükleniyor...', files[0].name);
+    
+    try {
+      const fd = new FormData();
+      fd.append("file", files[0]);
+      const res = await fetch(baseUrl + '/api/clipboard/file', { method: 'POST', body: fd });
+      if(res.ok) {
+        showProgress(false);
+        showToast('✅ Dosya başarıyla yüklendi');
+        uploader.clear();
+        fetchClipboardData();
+      } else {
+        showProgress(false);
+        showToast('❌ Yükleme hatası!', true);
+      }
+    } catch(err) {
+      showProgress(false);
+      showToast('❌ Bağlantı hatası!', true);
+    }
+    
+    $('sendFileBtn').disabled = false;
+  });
+
+  async function fetchClipboardData() {
+    try {
+      const res = await fetch(baseUrl + '/api/clipboard/data');
+      if (res.ok) {
+        const data = await res.json();
+        renderClipboardData(data);
+      } else {
+         $('clipboardDataList').innerHTML = '<div style="text-align:center; color:red;">Bağlantı hatası! Sunucu yanıt vermiyor.</div>';
+      }
+    } catch(err) {
+      $('clipboardDataList').innerHTML = '<div style="text-align:center; color:red;">Bağlantı hatası! API bulunamadı.</div>';
+    }
+  }
+
+  function renderClipboardData(data) {
+    const list = $('clipboardDataList');
+    let html = '';
+    
+    if (data.texts.length === 0 && data.files.length === 0) {
+      html = '<div style="text-align:center; padding: 20px; color:#64748b;">Henüz gelen veri yok.</div>';
+    }
+    
+    data.texts.forEach(t => {
+      html += `
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; position: relative;">
+          <div style="font-size: 12px; color: #94a3b8; margin-bottom: 5px;">${t.time_str} (Metin)</div>
+          <div style="font-size: 14px; word-break: break-all; margin-bottom: 10px;">${escapeHtml(t.content)}</div>
+          <button onclick="navigator.clipboard.writeText('${t.content.replace(/'/g, "\\'")}')" style="background:#14b8a6; color:white; border:none; border-radius:4px; padding:5px 10px; cursor:pointer; font-size:12px;">Kopyala</button>
+        </div>
+      `;
+    });
+    
+    data.files.forEach(f => {
+      html += `
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; position: relative; display: flex; justify-content: space-between; align-items: center;">
+          <div style="overflow: hidden; text-overflow: ellipsis;">
+            <div style="font-size: 12px; color: #94a3b8; margin-bottom: 5px;">${f.time_str} (Dosya)</div>
+            <div style="font-size: 14px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${f.filename}</div>
+          </div>
+          <button onclick="window.open('${baseUrl}/api/clipboard/download/${f.id}', '_blank')" style="background:#3b82f6; color:white; border:none; border-radius:4px; padding:8px 12px; cursor:pointer; font-size:12px; margin-left:10px;">İndir</button>
+        </div>
+      `;
+    });
+    
+    list.innerHTML = html;
+  }
+
+  $('refreshClipboardBtn').addEventListener('click', fetchClipboardData);
+  fetchClipboardData();
+}
