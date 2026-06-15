@@ -2256,15 +2256,19 @@ function renderVideoCompress(workspace) {
 
     const level = $('compressLevel').value;
     const bitrates = { high: 2500000, medium: 1000000, low: 500000 };
+    const audioBitrates = { high: 128000, medium: 96000, low: 64000 };
 
     showProgress(true);
     updateProgress(10, 'Video sıkıştırılıyor...', 'Video yükleniyor');
+
+    let audioCtx = null;
 
     try {
       const videoUrl = URL.createObjectURL(files[0]);
       const video = document.createElement('video');
       video.src = videoUrl;
-      video.muted = true;
+      // video.muted YAPMA - ses korunacak
+      video.crossOrigin = 'anonymous';
       await new Promise((res, rej) => { video.onloadedmetadata = res; video.onerror = rej; });
 
       const scale = level === 'low' ? 0.5 : level === 'medium' ? 0.75 : 1;
@@ -2273,10 +2277,35 @@ function renderVideoCompress(workspace) {
       canvas.height = Math.round(video.videoHeight * scale);
       const ctx = canvas.getContext('2d');
 
-      const stream = canvas.captureStream(24);
-      const recorder = new MediaRecorder(stream, {
-        mimeType: 'video/webm;codecs=vp8',
-        videoBitsPerSecond: bitrates[level]
+      // Video stream (canvas'tan görüntü)
+      const videoStream = canvas.captureStream(24);
+
+      // Ses stream'ini oluştur - orijinal videonun sesini yakala
+      audioCtx = new AudioContext();
+      const source = audioCtx.createMediaElementSource(video);
+      const dest = audioCtx.createMediaStreamDestination();
+      source.connect(dest);
+      source.connect(audioCtx.destination); // Ses çıkışı için (isteğe bağlı, sessiz çalışması için kaldırılabilir)
+
+      // Video ve ses stream'lerini birleştir
+      const combinedStream = new MediaStream([
+        ...videoStream.getVideoTracks(),
+        ...dest.stream.getAudioTracks()
+      ]);
+
+      // Codec desteğini kontrol et
+      let mimeType = 'video/webm;codecs=vp8,opus';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/webm;codecs=vp8';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'video/webm';
+        }
+      }
+
+      const recorder = new MediaRecorder(combinedStream, {
+        mimeType: mimeType,
+        videoBitsPerSecond: bitrates[level],
+        audioBitsPerSecond: audioBitrates[level]
       });
 
       const chunks = [];
@@ -2287,9 +2316,16 @@ function renderVideoCompress(workspace) {
         showSuccessOverlay(blob, 'sikistirilmis.webm',
           `Orijinal: ${formatFileSize(files[0].size)} → ${formatFileSize(blob.size)} (${savedPct}% küçüldü)`);
         URL.revokeObjectURL(videoUrl);
+        // AudioContext'i kapat
+        if (audioCtx && audioCtx.state !== 'closed') {
+          audioCtx.close();
+        }
       };
 
       recorder.start();
+
+      // Video sesini sustur (hoparlörden çıkmasın ama kayıt alsın)
+      video.volume = 0;
       video.play();
 
       const drawFrame = () => {
@@ -2302,6 +2338,9 @@ function renderVideoCompress(workspace) {
     } catch(err) {
       showProgress(false);
       showToast('❌ Hata: ' + err.message, true);
+      if (audioCtx && audioCtx.state !== 'closed') {
+        audioCtx.close();
+      }
     }
   });
 }
